@@ -8,9 +8,10 @@ route : L qubits, the password bits.  Step t *overwrites* route[t] with a
 merge : V qubits (V = 2 for p = 1019, L = 12), a tiny shift register that logs
         arrivals at the one spot where roads merge (see ``StepDesign``).
 spot  : 8 qubits, the current spot's code.
-flag  : 1 qubit, "are we at ANC?".
 
-Total 2*... = L + V + 9 = 23 qubits for Ankan's instance (128 MB statevector).
+Total L + V + 8 = 22 qubits for Ankan's instance (64 MB statevector).  There
+is no flag qubit: "are we at ANC?" is a phase on the spot register
+(``anc_phase``), and amplitude estimation measures the spot register itself.
 
 Why in place: a step (s, b) -> t loses at most the bit b (each spot has two
 incoming roads), so writing "which of the two" back into the road qubit keeps
@@ -27,7 +28,7 @@ from functools import cached_property
 import numpy as np
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit import Gate, Instruction
-from qiskit.circuit.library import UCGate
+from qiskit.circuit.library import DiagonalGate, UCGate
 
 from .field import Fp2
 from .reversible import apply_gates, control_table, decompose
@@ -141,31 +142,69 @@ class StepGate(Gate):
         super().__init__("step", design.n + 1 + design.V, [])
         self.design = design
 
-    def _define(self):
+    def _ops(self):
+        """(kind, args) list of the gates, in application order."""
         D = self.design
         n, V = D.n, D.V
-        qc = QuantumCircuit(self.num_qubits, name="step")
         word = list(range(n + 1))          # spot bits 0..n-1, road bit n
         merge = list(range(n + 1, n + 1 + V))
+        ops = []
         for j, f in D.gates:
             table = control_table(j, f, n + 1)
             if not any(table):
                 continue
             ctrls = [k for k in word if k != j]
             if all(table):
-                qc.x(j)
+                ops.append(("x", [j]))
             else:
-                qc.append(UCGate([_X if t else _I for t in table]), [j, *ctrls])
+                ops.append(("uc", (table, [j, *ctrls])))
         if V:
             hi = list(range(1, n))          # spot bits that are 1 for both T and alias
             for i in range(V - 1, 0, -1):   # shift: merge[i] <- merge[i-1], merge[0] <- 0
                 a, b = merge[i], merge[i - 1]
-                qc.mcx(hi + [a], b)
-                qc.mcx(hi + [b], a)
-                qc.mcx(hi + [a], b)
-            qc.mcx(list(range(n)), merge[0])   # alias -> mark the fresh slot
-            qc.mcx(hi + [merge[0]], 0)         # alias -> T's code
+                ops += [("mcx", (hi + [a], b)), ("mcx", (hi + [b], a)), ("mcx", (hi + [a], b))]
+            ops.append(("mcx", (list(range(n)), merge[0])))   # alias -> mark fresh slot
+            ops.append(("mcx", (hi + [merge[0]], 0)))         # alias -> T's code
+        return ops
+
+    @staticmethod
+    def _emit(qc: QuantumCircuit, ops):
+        for kind, a in ops:
+            if kind == "x":
+                qc.x(a[0])
+            elif kind == "uc":
+                table, qubits = a
+                qc.append(UCGate([_X if t else _I for t in table]), qubits)
+            else:
+                qc.mcx(*a)
+
+    def _define(self):
+        qc = QuantumCircuit(self.num_qubits, name="step")
+        self._emit(qc, self._ops())
         self.definition = qc
+
+    def inverse(self, annotated: bool = False):
+        """Every gate in the step is an involution (I/X multiplexers, X, MCX), so
+        the inverse is the same list reversed.  (Qiskit's generic
+        ``UCGate.inverse()`` is *not* a multiplexer any more and would be
+        transpiled into thousands of gates.)"""
+        return StepDgGate(self)
+
+
+class StepDgGate(Gate):
+    """Inverse of one step; also one query."""
+
+    def __init__(self, step: StepGate):
+        super().__init__("step_dg", step.num_qubits, [])
+        self._step = step
+
+    def _define(self):
+        qc = QuantumCircuit(self.num_qubits, name="step_dg")
+        StepGate._emit(qc, self._step._ops()[::-1])
+        self.definition = qc
+
+    def inverse(self, annotated: bool = False):
+        return self._step
 
 
 def mcx_on_value(qc: QuantumCircuit, qubits, value: int, target):
@@ -193,8 +232,7 @@ class WalkCircuits:
         self.route = QuantumRegister(L, "route")
         self.spot = QuantumRegister(D.n, "spot")
         self.merge = QuantumRegister(D.V, "merge") if D.V else None
-        self.flag = QuantumRegister(1, "flag")
-        self.regs = tuple(r for r in (self.route, self.merge, self.spot, self.flag) if r is not None)
+        self.regs = tuple(r for r in (self.route, self.merge, self.spot) if r is not None)
         self.step = StepGate(D)
         self.step_dg = self.step.inverse()
         self.targets = [D.code[s] for s in range(S.n_spots) if S.jtab[s] == j_star]
@@ -215,8 +253,11 @@ class WalkCircuits:
         return [self._index(q) for q in self.route]
 
     @property
-    def flag_qubit(self) -> int:
-        return self._index(self.flag[0])
+    def spot_qubits(self) -> list[int]:
+        return [self._index(q) for q in self.spot]
+
+    def is_marked_code(self, code: int) -> bool:
+        return code in self.targets
 
     def _step_qubits(self, t: int):
         return [*self.spot, self.route[t], *(self.merge or [])]
@@ -248,44 +289,36 @@ class WalkCircuits:
             qc.append(self.step_dg, self._step_qubits(t))
         return qc
 
-    def check(self) -> QuantumCircuit:
-        """flag ^= [spot holds a curve with j = j*] -- reads only the spot register.
-        Empty if no spot has j*, so nothing can ever be marked."""
+    def anc_phase(self) -> QuantumCircuit:
+        """|spot> -> (-1)^[spot holds a curve with j = j*] |spot>.
+
+        Reads only the spot register (one ``DiagonalGate``, native in Aer).  If no
+        spot has j = j*, it is the identity, so nothing can ever be marked."""
         qc = self.new("at_ANC?")
-        for c in self.targets:
-            mcx_on_value(qc, list(self.spot), c, self.flag[0])
+        if self.targets:
+            diag = [-1.0 if c in self.targets else 1.0 for c in range(1 << len(self.spot))]
+            qc.append(DiagonalGate(diag), list(self.spot))
         return qc
 
     # -- composite circuits ------------------------------------------------
-    def bit_oracle(self) -> QuantumCircuit:
-        """|r,0,s0,f> -> |r,0,s0,f ^ [H(r) = j*]>       (2L queries)."""
-        qc = self.new("O_bit")
-        qc.compose(self.walk(), inplace=True)
-        qc.compose(self.check(), inplace=True)
-        qc.compose(self.unwalk(), inplace=True)
-        return qc
-
     def phase_oracle(self) -> QuantumCircuit:
-        """|r,0,s0,0> -> (-1)^[H(r) = j*] |r,0,s0,0>   (2L queries)."""
+        """|r, 0, s0> -> (-1)^[H(r) = j*] |r, 0, s0>      (2L queries)."""
         qc = self.new("O_phase")
         qc.compose(self.walk(), inplace=True)
-        qc.compose(self.check(), inplace=True)
-        qc.z(self.flag[0])
-        qc.compose(self.check(), inplace=True)
+        qc.compose(self.anc_phase(), inplace=True)
         qc.compose(self.unwalk(), inplace=True)
         return qc
 
     def amplitude_prep(self) -> QuantumCircuit:
-        """A|0> = sum_r |garbage(r)>|spot(r)>|[H(r) = j*]> / sqrt(N)   (L queries).
+        """A|0> = sum_r |garbage(r)>|merge(r)>|spot(r)> / sqrt(N)   (L queries).
 
-        The walk is left uncomputed on purpose: amplitude estimation only
-        measures the flag, and Q = A S0 A^dagger S_flag then costs 2L queries
-        per Grover call instead of 4L."""
+        The good states are those whose spot register is ANC.  The walk is left
+        uncomputed on purpose: amplitude estimation only looks at the spot
+        register, and Q = A S0 A^dagger S_ANC then costs 2L queries per call."""
         qc = self.new("A")
         qc.compose(self.uniform_routes(), inplace=True)
         qc.compose(self.load_start(), inplace=True)
         qc.compose(self.walk(), inplace=True)
-        qc.compose(self.check(), inplace=True)
         return qc
 
 

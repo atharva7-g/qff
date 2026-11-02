@@ -10,7 +10,7 @@ import argparse
 import math
 import time
 
-from .backend import CountingSampler, choose_method
+from .backend import CountingSampler, QueryLog, choose_method
 from .circuits import WalkCircuits
 from .count import quantum_count
 from .search import find_all
@@ -26,8 +26,8 @@ def optimal_quantum_find_all(N: int, k: int) -> float:
     return sum(math.pi / 4 * math.sqrt(N / i) for i in range(1, k + 1))
 
 
-def run(p: int, A0: str, L: int, jstar: str, alpha: float, method: str, shots: int,
-        seed: int | None, quiet: bool = False) -> dict:
+def run(p: int, A0: str, L: int, jstar: str, alpha: float = 0.01, method: str = "auto",
+        shots: int = 16, seed: int | None = None, quiet: bool = False) -> dict:
     say = (lambda *a: None) if quiet else print
     campus = Campus(p)
     F = campus.F
@@ -39,15 +39,16 @@ def run(p: int, A0: str, L: int, jstar: str, alpha: float, method: str, shots: i
 
     W = WalkCircuits(S, a0, L, js)
     m = choose_method(W.num_qubits, method)
-    say(f"circuit: {W.num_qubits} qubits (route {L}, tag {L}, spot {S.spot_bits}, flag 1); "
-        f"simulator: Aer {m}")
-    say(f"ANC check marks spot(s) {W.targets or 'none'} (j = {F.fmt(js)})")
+    D = W.design
+    say(f"circuit: {W.num_qubits} qubits (route {L}, merge {D.V}, spot {D.n}); "
+        f"step = {sum(1 for _ in D.gates)} single-target gates; simulator: Aer {m}")
+    say(f"ANC phase marks spot code(s) {W.targets or 'none'} (j = {F.fmt(js)})")
 
     N = W.N
-    cs = CountingSampler(m, shots=shots, seed=seed, tag="count")
-    cnt = quantum_count(W, cs, alpha=alpha)
-    for i, r in enumerate(cnt.rounds):
-        say(f"  IAE run {i}: eps={r['epsilon']:.3g}  k in [{r['k_interval'][0]:.3f}, "
+    log = QueryLog()
+    cnt = quantum_count(W, alpha=alpha, shots=shots, method=m, seed=seed, log=log)
+    for r in cnt.rounds:
+        say(f"  MLAE schedule {r['schedule']}: k in [{r['k_interval'][0]:.3f}, "
             f"{r['k_interval'][1]:.3f}]  queries={r['queries']}")
     out = dict(N=N, L=L, count=cnt, routes=[], search=None)
     if cnt.k is None:
@@ -55,14 +56,14 @@ def run(p: int, A0: str, L: int, jstar: str, alpha: float, method: str, shots: i
             f"k in [{cnt.k_interval[0]:.2f}, {cnt.k_interval[1]:.2f}]")
         return out
     k = cnt.k
-    say(f"quantum count: k = {k}  (confidence >= {1 - alpha:.4f})")
+    say(f"quantum count: k = {k}  (likelihood-ratio confidence {1 - alpha:.4f})")
 
     if k == 0:
         say("No 12-step route from the Maths department reaches ANC." if L == 12
             else f"No {L}-step route reaches the target.")
         sr = None
     else:
-        ss = CountingSampler(m, shots=shots, seed=seed, tag="search")
+        ss = CountingSampler(m, shots=32, seed=seed, tag="search")
         sr = find_all(W, k, ss, campus)
         out["routes"] = sr.routes
         say(f"Grover search: {sr.iterations} iterations/run, {sr.runs} runs, "
@@ -88,8 +89,8 @@ def run(p: int, A0: str, L: int, jstar: str, alpha: float, method: str, shots: i
         f"-> {2 * L * opt_calls:.0f} steps")
     say(f"  quantum exact count  : Theta(sqrt((k+1)(N-k+1))) ~ {exact_count_calls:.1f} "
         f"oracle calls -> {2 * L * exact_count_calls:.0f} steps")
-    say(f"confidence the list is complete: >= {1 - alpha:.4f} "
-        f"(k correct w.p. >= 1-alpha, and {len(out['routes'])} distinct verified routes)")
+    say(f"confidence the list is complete: {1 - alpha:.4f} "
+        f"(k pinned at level 1-alpha, and {len(out['routes'])} distinct verified routes)")
     say(f"time: {time.time() - t0:.1f}s")
     return out
 
@@ -101,7 +102,7 @@ def main(argv=None):
     ap.add_argument("--alpha", type=float, default=0.01, help="failure probability of the count")
     ap.add_argument("--method", default="auto",
                     help="Aer method: auto | statevector | matrix_product_state")
-    ap.add_argument("--shots", type=int, default=100, help="shots per IAE round")
+    ap.add_argument("--shots", type=int, default=16, help="shots per MLAE circuit")
     ap.add_argument("--seed", type=int, default=None)
     a = ap.parse_args(argv)
     run(a.p, a.A0, a.L, a.jstar, a.alpha, a.method, a.shots, a.seed)

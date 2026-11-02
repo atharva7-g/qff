@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from qiskit import QuantumCircuit, transpile
 from qiskit.primitives import BaseSamplerV2
 from qiskit_aer import AerSimulator
@@ -18,7 +20,7 @@ from qiskit_aer.primitives import SamplerV2 as AerSampler
 from .circuits import count_queries
 
 # Above this many qubits a dense statevector does not fit in ~16 GB.
-STATEVECTOR_MAX_QUBITS = 28
+STATEVECTOR_MAX_QUBITS = 29
 
 
 def choose_method(num_qubits: int, method: str = "auto") -> str:
@@ -75,3 +77,97 @@ def run_shots(sampler: CountingSampler, circ: QuantumCircuit, shots: int) -> lis
     res = sampler.run([(circ,)], shots=shots, charge=False).result()[0]
     reg = next(iter(res.data.keys()))
     return getattr(res.data, reg).get_bitstrings()
+
+
+class _Job:
+    def __init__(self, result):
+        self._result = result
+
+    def result(self):
+        return self._result
+
+
+class SnapshotSampler(BaseSamplerV2):
+    """Sampler for amplitude-estimation circuits of the form  A Q^m, measure(spot).
+
+    Every such circuit is a *prefix* of the same sequence A, Q, Q, Q, ...  So
+    instead of simulating each circuit from scratch, we simulate the sequence
+    once with Aer, saving the exact outcome distribution of the spot register
+    after each needed power (``save_probabilities``), and continue later from a
+    saved statevector (``set_statevector``) if a longer schedule is requested.
+    Shots are then drawn from those exact distributions, which is the same
+    distribution as running each circuit on its own.  Queries are charged as if
+    every circuit were run separately on hardware: (L + 2L m) x shots.
+    """
+
+    def __init__(self, W, problem, method: str = "statevector", shots: int = 16,
+                 seed: int | None = None, log: QueryLog | None = None, tag: str = "count"):
+        self.W, self.problem = W, problem
+        self.backend = AerSimulator(method=method)
+        self.default_shots = shots
+        self.rng = np.random.default_rng(seed)
+        self.log = log or QueryLog()
+        self.tag = tag
+        self.probs: dict[int, np.ndarray] = {}
+        self._M = -1            # highest power simulated so far
+        self._sv = None         # statevector after A Q^_M
+        self.simulated_grover_calls = 0
+
+    def power_of(self, circ: QuantumCircuit) -> int:
+        L = self.W.L
+        q = count_queries(circ)
+        m2 = q // L - 1
+        if q % L or m2 % 2:
+            raise ValueError("not an A Q^m circuit")
+        return m2 // 2
+
+    def _simulate(self, needed: set[int]):
+        top = max(needed)
+        if top <= self._M:
+            return
+        W = self.W
+        qc = W.new("prefix")
+        if self._sv is None:
+            qc.compose(self.problem.state_preparation, inplace=True)
+            start = 0
+            if 0 in needed:
+                qc.save_probabilities(W.spot_qubits, label="m0")
+        else:
+            qc.set_statevector(self._sv)
+            start = self._M
+        for m in range(start + 1, top + 1):
+            qc.compose(self.problem.grover_operator, inplace=True)
+            if m in needed:
+                qc.save_probabilities(W.spot_qubits, label=f"m{m}")
+        qc.save_statevector(label="sv")
+        tq = transpile(qc, self.backend, optimization_level=0)
+        data = self.backend.run(tq).result().data(0)
+        for m in needed:
+            if f"m{m}" in data:
+                self.probs[m] = np.asarray(data[f"m{m}"], dtype=float)
+        self.simulated_grover_calls += top - max(self._M, 0)
+        self._M = top
+        self._sv = data["sv"]
+
+    def run(self, pubs, *, shots: int | None = None):
+        from qiskit.primitives import PrimitiveResult, SamplerPubResult
+        from qiskit.primitives.containers import BitArray, DataBin
+
+        circs = [p[0] if isinstance(p, tuple) else p for p in pubs]
+        powers = [self.power_of(c) for c in circs]
+        self._simulate({m for m in powers if m not in self.probs})
+        n_shots = shots or self.default_shots
+        nbits = len(self.W.spot)
+        out = []
+        for circ, m in zip(circs, powers):
+            p = self.probs[m]
+            p = np.clip(p, 0, None)
+            hits = self.rng.multinomial(n_shots, p / p.sum())
+            counts = {format(c, f"0{nbits}b"): int(h) for c, h in enumerate(hits) if h}
+            creg = circ.cregs[0].name
+            data = DataBin(**{creg: BitArray.from_counts(counts, num_bits=nbits)})
+            out.append(SamplerPubResult(data, metadata={"shots": n_shots}))
+            self.log.add(self.tag, count_queries(circ) * n_shots)
+            self.log.shots += n_shots
+            self.log.circuits += 1
+        return _Job(PrimitiveResult(out))
