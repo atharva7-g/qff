@@ -98,10 +98,15 @@ class SnapshotSampler(BaseSamplerV2):
     Shots are then drawn from those exact distributions, which is the same
     distribution as running each circuit on its own.  Queries are charged as if
     every circuit were run separately on hardware: (L + 2L m) x shots.
+
+    With ``reuse=True`` measurements are kept (a repeated power returns the
+    same counts at no cost); with ``reuse=False`` (what IAE needs) every request
+    draws fresh shots and is charged.
     """
 
     def __init__(self, W, problem, method: str = "statevector", shots: int = 16,
-                 seed: int | None = None, log: QueryLog | None = None, tag: str = "count"):
+                 seed: int | None = None, log: QueryLog | None = None, tag: str = "count",
+                 reuse: bool = False):
         self.W, self.problem = W, problem
         self.backend = AerSimulator(method=method)
         self.default_shots = shots
@@ -109,6 +114,8 @@ class SnapshotSampler(BaseSamplerV2):
         self.log = log or QueryLog()
         self.tag = tag
         self.probs: dict[int, np.ndarray] = {}
+        self.counts: dict[int, dict[str, int]] = {}
+        self.reuse = reuse
         self._M = -1            # highest power simulated so far
         self._sv = None         # statevector after A Q^_M
         self.simulated_grover_calls = 0
@@ -122,27 +129,28 @@ class SnapshotSampler(BaseSamplerV2):
         return m2 // 2
 
     def _simulate(self, needed: set[int]):
-        top = max(needed)
-        if top <= self._M:
+        """Extend the simulated sequence up to max(needed), saving the spot
+        register's distribution after *every* power (256 numbers each), so any
+        power <= the highest one simulated is available later."""
+        if not needed or max(needed) <= self._M:
             return
+        top = max(needed)
         W = self.W
         qc = W.new("prefix")
         if self._sv is None:
             qc.compose(self.problem.state_preparation, inplace=True)
             start = 0
-            if 0 in needed:
-                qc.save_probabilities(W.spot_qubits, label="m0")
+            qc.save_probabilities(W.spot_qubits, label="m0")
         else:
             qc.set_statevector(self._sv)
             start = self._M
         for m in range(start + 1, top + 1):
             qc.compose(self.problem.grover_operator, inplace=True)
-            if m in needed:
-                qc.save_probabilities(W.spot_qubits, label=f"m{m}")
+            qc.save_probabilities(W.spot_qubits, label=f"m{m}")
         qc.save_statevector(label="sv")
         tq = transpile(qc, self.backend, optimization_level=0)
         data = self.backend.run(tq).result().data(0)
-        for m in needed:
+        for m in range(start, top + 1):
             if f"m{m}" in data:
                 self.probs[m] = np.asarray(data[f"m{m}"], dtype=float)
         self.simulated_grover_calls += top - max(self._M, 0)
@@ -160,14 +168,14 @@ class SnapshotSampler(BaseSamplerV2):
         nbits = len(self.W.spot)
         out = []
         for circ, m in zip(circs, powers):
-            p = self.probs[m]
-            p = np.clip(p, 0, None)
-            hits = self.rng.multinomial(n_shots, p / p.sum())
-            counts = {format(c, f"0{nbits}b"): int(h) for c, h in enumerate(hits) if h}
+            if not self.reuse or m not in self.counts:   # new experiment: sample and pay
+                p = np.clip(self.probs[m], 0, None)
+                hits = self.rng.multinomial(n_shots, p / p.sum())
+                self.counts[m] = {format(c, f"0{nbits}b"): int(h) for c, h in enumerate(hits) if h}
+                self.log.add(self.tag, count_queries(circ) * n_shots)
+                self.log.shots += n_shots
+                self.log.circuits += 1
             creg = circ.cregs[0].name
-            data = DataBin(**{creg: BitArray.from_counts(counts, num_bits=nbits)})
+            data = DataBin(**{creg: BitArray.from_counts(self.counts[m], num_bits=nbits)})
             out.append(SamplerPubResult(data, metadata={"shots": n_shots}))
-            self.log.add(self.tag, count_queries(circ) * n_shots)
-            self.log.shots += n_shots
-            self.log.circuits += 1
         return _Job(PrimitiveResult(out))

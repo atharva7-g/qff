@@ -27,7 +27,7 @@ def optimal_quantum_find_all(N: int, k: int) -> float:
 
 
 def run(p: int, A0: str, L: int, jstar: str, alpha: float = 0.01, method: str = "auto",
-        shots: int = 16, seed: int | None = None, quiet: bool = False) -> dict:
+        shots: int = 32, seed: int | None = None, quiet: bool = False) -> dict:
     say = (lambda *a: None) if quiet else print
     campus = Campus(p)
     F = campus.F
@@ -48,15 +48,15 @@ def run(p: int, A0: str, L: int, jstar: str, alpha: float = 0.01, method: str = 
     log = QueryLog()
     cnt = quantum_count(W, alpha=alpha, shots=shots, method=m, seed=seed, log=log)
     for r in cnt.rounds:
-        say(f"  MLAE schedule {r['schedule']}: k in [{r['k_interval'][0]:.3f}, "
-            f"{r['k_interval'][1]:.3f}]  queries={r['queries']}")
+        say(f"  IAE run eps={r['epsilon']:.2e}: max power {max(r['powers'])}, "
+            f"k in [{r['k_interval'][0]:.3f}, {r['k_interval'][1]:.3f}]  queries={r['queries']}")
     out = dict(N=N, L=L, count=cnt, routes=[], search=None)
     if cnt.k is None:
         say("could not pin k to one integer within the run budget; "
             f"k in [{cnt.k_interval[0]:.2f}, {cnt.k_interval[1]:.2f}]")
         return out
     k = cnt.k
-    say(f"quantum count: k = {k}  (likelihood-ratio confidence {1 - alpha:.4f})")
+    say(f"quantum count: k = {k}  (confidence >= {1 - alpha:.4f})")
 
     if k == 0:
         say("No 12-step route from the Maths department reaches ANC." if L == 12
@@ -89,7 +89,7 @@ def run(p: int, A0: str, L: int, jstar: str, alpha: float = 0.01, method: str = 
         f"-> {2 * L * opt_calls:.0f} steps")
     say(f"  quantum exact count  : Theta(sqrt((k+1)(N-k+1))) ~ {exact_count_calls:.1f} "
         f"oracle calls -> {2 * L * exact_count_calls:.0f} steps")
-    say(f"confidence the list is complete: {1 - alpha:.4f} "
+    say(f"confidence the list is complete: >= {1 - alpha:.4f} "
         f"(k pinned at level 1-alpha, and {len(out['routes'])} distinct verified routes)")
     say(f"time: {time.time() - t0:.1f}s")
     return out
@@ -102,7 +102,7 @@ def main(argv=None):
     ap.add_argument("--alpha", type=float, default=0.01, help="failure probability of the count")
     ap.add_argument("--method", default="auto",
                     help="Aer method: auto | statevector | matrix_product_state")
-    ap.add_argument("--shots", type=int, default=16, help="shots per MLAE circuit")
+    ap.add_argument("--shots", type=int, default=32, help="shots per IAE round")
     ap.add_argument("--seed", type=int, default=None)
     a = ap.parse_args(argv)
     run(a.p, a.A0, a.L, a.jstar, a.alpha, a.method, a.shots, a.seed)
