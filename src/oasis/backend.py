@@ -23,6 +23,16 @@ from .circuits import count_queries
 STATEVECTOR_MAX_QUBITS = 29
 
 
+# Single precision is ~15% faster and its ~1e-7 rounding is irrelevant here;
+# gate fusion does not help circuits made of 9-qubit multiplexers.
+AER_OPTIONS = {"precision": "single", "fusion_enable": False}
+
+
+def make_backend(method: str) -> AerSimulator:
+    opts = AER_OPTIONS if method == "statevector" else {}
+    return AerSimulator(method=method, **opts)
+
+
 def choose_method(num_qubits: int, method: str = "auto") -> str:
     if method != "auto":
         return method
@@ -46,11 +56,12 @@ class CountingSampler(BaseSamplerV2):
 
     def __init__(self, method: str, shots: int = 100, seed: int | None = None, tag: str = ""):
         self.method = method
-        self.backend = AerSimulator(method=method)
+        self.backend = make_backend(method)
+        opts = {"method": method, **(AER_OPTIONS if method == "statevector" else {})}
         self._inner = AerSampler(
             default_shots=shots,
             seed=seed,
-            options={"backend_options": {"method": method}},
+            options={"backend_options": opts},
         )
         self.default_shots = shots
         self.log = QueryLog()
@@ -108,7 +119,7 @@ class SnapshotSampler(BaseSamplerV2):
                  seed: int | None = None, log: QueryLog | None = None, tag: str = "count",
                  reuse: bool = False):
         self.W, self.problem = W, problem
-        self.backend = AerSimulator(method=method)
+        self.backend = make_backend(method)
         self.default_shots = shots
         self.rng = np.random.default_rng(seed)
         self.log = log or QueryLog()

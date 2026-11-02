@@ -28,7 +28,7 @@ def optimal_quantum_find_all(N: int, k: int) -> float:
 
 def run(p: int, A0: str, L: int, jstar: str, alpha: float = 0.01, method: str = "auto",
         shots: int = 32, seed: int | None = None, quiet: bool = False) -> dict:
-    say = (lambda *a: None) if quiet else print
+    say = (lambda *a, **k: None) if quiet else print
     campus = Campus(p)
     F = campus.F
     a0, js = F.parse(A0), F.parse(jstar)
@@ -46,10 +46,12 @@ def run(p: int, A0: str, L: int, jstar: str, alpha: float = 0.01, method: str = 
 
     N = W.N
     log = QueryLog()
-    cnt = quantum_count(W, alpha=alpha, shots=shots, method=m, seed=seed, log=log)
-    for r in cnt.rounds:
+    def show(r):
         say(f"  IAE run eps={r['epsilon']:.2e}: max power {max(r['powers'])}, "
-            f"k in [{r['k_interval'][0]:.3f}, {r['k_interval'][1]:.3f}]  queries={r['queries']}")
+            f"k in [{r['k_interval'][0]:.3f}, {r['k_interval'][1]:.3f}]  queries={r['queries']}"
+            f"  [{time.time() - t0:.0f}s]", flush=True)
+
+    cnt = quantum_count(W, alpha=alpha, shots=shots, method=m, seed=seed, log=log, progress=show)
     out = dict(N=N, L=L, count=cnt, routes=[], search=None)
     if cnt.k is None:
         say("could not pin k to one integer within the run budget; "
