@@ -66,7 +66,7 @@ def run(p: int, A0: str, L: int, jstar: str, alpha: float = 0.01, method: str = 
         sr = None
     else:
         ss = CountingSampler(m, shots=32, seed=seed, tag="search")
-        sr = find_all(W, k, ss, campus)
+        sr = find_all(W, k, ss, campus, seed=seed)
         out["routes"] = sr.routes
         say(f"Grover search: {sr.iterations} iterations/run, {sr.runs} runs, "
             f"{sr.rejected} rejected by the classical check")

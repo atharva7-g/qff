@@ -12,10 +12,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from qiskit import ClassicalRegister
+import numpy as np
+from qiskit import ClassicalRegister, transpile
 from qiskit.circuit.library import grover_operator
 
-from .backend import CountingSampler, run_shots
+from .backend import CountingSampler
 from .circuits import WalkCircuits, count_queries
 from .walk import Campus
 
@@ -34,7 +35,7 @@ class SearchResult:
     queries: int
 
 
-def search_circuit(W: WalkCircuits, r: int):
+def search_circuit(W: WalkCircuits, r: int, measure: bool = True):
     G = grover_operator(
         W.phase_oracle(),
         state_preparation=W.uniform_routes(),
@@ -45,15 +46,27 @@ def search_circuit(W: WalkCircuits, r: int):
     qc.compose(W.uniform_routes(), inplace=True)
     for _ in range(r):
         qc.compose(G, inplace=True)
-    c = ClassicalRegister(W.L, "m")
-    qc.add_register(c)
-    qc.measure(W.route, c)
+    if measure:
+        c = ClassicalRegister(W.L, "m")
+        qc.add_register(c)
+        qc.measure(W.route, c)
     return qc
 
 
-def bits_to_route(bitstring: str) -> str:
-    """Qiskit prints m[L-1]..m[0]; route bit t is route[t] = m[t]."""
-    return bitstring[::-1]
+def route_distribution(W: WalkCircuits, r: int, backend) -> np.ndarray:
+    """Exact outcome distribution of measuring the route register after
+    H, G^r -- simulated once (``save_probabilities``).  Each Grover run is then a
+    draw from it, which is exactly what running the circuit again would give."""
+    qc = search_circuit(W, r, measure=False)
+    qc.save_probabilities(W.route_qubits, label="p")
+    data = backend.run(transpile(qc, backend, optimization_level=0)).result().data(0)
+    p = np.clip(np.asarray(data["p"], dtype=float), 0, None)
+    return p / p.sum()
+
+
+def index_to_route(x: int, L: int) -> str:
+    """Outcome index x has route[t] = bit t of x."""
+    return "".join(str((x >> t) & 1) for t in range(L))
 
 
 def find_all(
@@ -61,29 +74,27 @@ def find_all(
     k: int,
     sampler: CountingSampler,
     campus: Campus,
-    batch: int = 32,
     max_runs: int | None = None,
+    seed: int | None = None,
 ) -> SearchResult:
     if k <= 0:
         return SearchResult([], 0, 0, 0, 0)
     r = grover_iterations(k, W.N)
-    qc = search_circuit(W, r)
-    per_shot = count_queries(qc)
+    per_shot = count_queries(search_circuit(W, r))
     max_runs = max_runs or int(10 * k * (math.log(k) + 2)) + 10
+    dist = route_distribution(W, r, sampler.backend)
+    rng = np.random.default_rng(seed)
     found: list[str] = []
     runs = rejected = 0
     while len(found) < k and runs < max_runs:
-        # Simulate a batch of runs, but only charge the runs we actually use.
-        for bs in run_shots(sampler, qc, batch):
-            runs += 1
-            sampler.log.add(sampler.tag, per_shot)
-            sampler.log.shots += 1
-            route = bits_to_route(bs)
-            if campus.H(W.A0, route) == W.j_star:   # the one allowed classical check
-                if route not in found:
-                    found.append(route)
-            else:
-                rejected += 1
-            if len(found) >= k or runs >= max_runs:
-                break
+        x = int(rng.choice(len(dist), p=dist))     # one Grover run, measured
+        runs += 1
+        sampler.log.add(sampler.tag, per_shot)
+        sampler.log.shots += 1
+        route = index_to_route(x, W.L)
+        if campus.H(W.A0, route) == W.j_star:       # the one allowed classical check
+            if route not in found:
+                found.append(route)
+        else:
+            rejected += 1
     return SearchResult(sorted(found), runs, rejected, r, per_shot * runs)
