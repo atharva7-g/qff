@@ -153,7 +153,10 @@ class SnapshotSampler(BaseSamplerV2):
             start = 0
             qc.save_probabilities(W.spot_qubits, label="m0")
         else:
-            qc.set_statevector(self._sv)
+            # single-precision rounding drifts the norm by ~1e-6 over many gates;
+            # renormalise (in double) so Aer accepts the saved state.
+            sv = np.asarray(self._sv, dtype=np.complex128)
+            qc.set_statevector(sv / np.linalg.norm(sv))
             start = self._M
         for m in range(start + 1, top + 1):
             qc.compose(self.problem.grover_operator, inplace=True)
