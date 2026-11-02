@@ -1,0 +1,4 @@
+warning: The `UV_NATIVE_TLS` environment variable is deprecated and will be removed in a future release. Use `UV_SYSTEM_CERTS` instead.
+survey: 255 spots, 510 roads walked (<= 2 per spot)
+circuit: 22 qubits (route 12, merge 2, spot 8); step = 17 single-target gates; simulator: Aer statevector
+ANC phase marks spot code(s) [21, 104, 249] (j = 797 + 921i)
