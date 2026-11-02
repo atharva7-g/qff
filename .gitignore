@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+results/part1_L12.txt
