@@ -1,0 +1,30 @@
+arithmetic step for p = 1019 (n = 10 bits); basis {x, cx, ccx}, CSWAP = 1 Toffoli + 2 CX
+  step       qubits    850  Toffoli   431,914  T  3,023,398 (7/Toffoli)  CX    900,472  X  45,916  depth  1,036,521 (block bound 1,353,281)
+  tower test qubits    166  Toffoli    45,658  T    319,606 (7/Toffoli)  CX     95,809  X   5,032  depth    109,942 (block bound 143,710)
+checking every spot and both bits on Aer matrix_product_state (32 processes) ...
+  step : 510 cases, 0 wrong, 0 changed inputs, 0 with a work qubit not 0  -> PASS  [2161s]
+  tower: 255 spots, 0 wrong, 0 changed inputs, 0 with a work qubit not 0  -> PASS  [2213s]
+
+cost against the size of p (exact counts from the block hierarchy; p ~ 2^(n - 1/2)):
+     n    qubits         Toffoli        T (7/Tof)    depth bound  | tower qubits  tower Toffoli
+    10       770         364,970        2,554,790      1,124,503  |          166         45,658
+    12     1,066         616,882        4,318,174      1,888,803  |          198         64,354
+    16     1,738       1,338,178        9,367,246      4,040,487  |          262        111,346
+    24     3,658       4,295,138       30,065,966     12,825,155  |          390        243,730
+    32     6,538      10,589,570       74,126,990     31,623,557  |          518        427,314
+    48    15,178      38,598,082      270,186,574    115,746,615  |          774        948,082
+    64    26,122      88,252,546      617,767,822    263,193,987  |        1,030      1,673,650
+    96    57,994     295,873,666    2,071,115,662    880,154,197  |        1,542      3,739,186
+   128   102,922     704,262,146    4,929,835,022  2,093,965,759  |        2,054      6,623,922
+   192   229,642   2,363,111,426   16,541,779,982  7,015,317,479  |        3,078     14,850,994
+   256   400,394   5,459,092,226   38,213,645,582 16,155,516,437  |        4,102     26,354,866
+  Toffoli  ~ 416.12 n^2.96   (fit on the 3 largest n)
+  qubits   ~ 7.60 n^1.96   (fit on the 3 largest n)
+  depth    ~ 1277.72 n^2.95   (fit on the 3 largest n)
+  p used at n = 256: 81877371507464127617551201542979628307507432471243237061821853600756754782531
+
+Part 2 at p ~ 2^256: a ~ 7 / sqrt(p) = 2^-124.9, L = 512
+  Grover iterations (pi/4) / sqrt(a) ~ 2^62.1
+  per iteration: 2L steps + 1 tower test + diffusion = 5.590e+12 Toffoli
+  total ~ 2^104.5 Toffoli = 2.81e+31  (T ~ 1.96e+32); qubits ~ 662,537
+time: 2590s

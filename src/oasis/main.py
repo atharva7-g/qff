@@ -3,6 +3,7 @@
     uv run oasis                    # Part 1, Ankan's instance (p=1019, L=12)
     uv run oasis --L 4 --jstar ...  # Part 1, smaller instances for testing
     uv run oasis --part 2           # Part 2: tower data + Grover demo (p=5923)
+    uv run oasis --part 3           # Part 3: arithmetic step, all 510 checks, cost at 2^256
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ DEFAULTS = {
     1: dict(p=1019, A0="977 + 297i", L=12, jstar="797 + 921i"),
     # smallest prime with <= 1/32 of its spots on top; from A0, 103/4096 routes are
     2: dict(p=5923, A0="66 + 1530i", L=12, jstar=None),
+    3: dict(p=1019, A0=None, L=None, jstar=None),
 }
 
 
@@ -191,7 +193,7 @@ def run_part2(p: int, A0: str, L: int, iterations: int = 16, shots: int = 200,
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    ap.add_argument("--part", type=int, choices=(1, 2), default=1)
+    ap.add_argument("--part", type=int, choices=(1, 2, 3), default=1)
     ap.add_argument("--p", type=int)
     ap.add_argument("--A0")
     ap.add_argument("--L", type=int)
@@ -206,12 +208,17 @@ def main(argv=None):
     ap.add_argument("--scan-bits", type=float, nargs=2, default=(10, 26),
                     help="Part 2: primes from 2^a to 2^b (0 0 skips the scan)")
     ap.add_argument("--out", default="results")
+    ap.add_argument("--workers", type=int, default=32, help="Part 3: processes for the checks")
+    ap.add_argument("--no-check", action="store_true", help="Part 3: costs only, skip the 510 checks")
     a = ap.parse_args(argv)
     for k, v in DEFAULTS[a.part].items():
         if getattr(a, k) is None:
             setattr(a, k, v)
     if a.part == 1:
         run(a.p, a.A0, a.L, a.jstar, a.alpha, a.method, a.shots, a.seed)
+    elif a.part == 3:
+        from .part3 import run_part3
+        run_part3(a.p, check=not a.no_check, workers=a.workers)
     else:
         scan = tuple(a.scan_bits) if a.scan_bits[1] > a.scan_bits[0] else ()
         run_part2(a.p, a.A0, a.L, a.iterations, scan_bits=scan, walks=a.walks,
