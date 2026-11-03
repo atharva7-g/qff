@@ -223,7 +223,9 @@ def mcx_on_value(qc: QuantumCircuit, qubits, value: int, target):
 class WalkCircuits:
     """Every circuit needed for one (A0, L, j*) on a surveyed campus."""
 
-    def __init__(self, S: Survey, A0: Fp2, L: int, j_star: Fp2):
+    def __init__(self, S: Survey, A0: Fp2, L: int, j_star: Fp2 | None):
+        """j_star = None marks the Clock Tower (every spot with j in F_p)
+        instead of one j-invariant (Part 2)."""
         if A0 not in S.index:
             raise ValueError("A0 is not a spot of the surveyed campus")
         self.S, self.L, self.A0, self.j_star = S, L, A0, j_star
@@ -235,7 +237,8 @@ class WalkCircuits:
         self.regs = tuple(r for r in (self.route, self.merge, self.spot) if r is not None)
         self.step = StepGate(D)
         self.step_dg = self.step.inverse()
-        self.targets = [D.code[s] for s in range(S.n_spots) if S.jtab[s] == j_star]
+        marked = (lambda j: j[1] == 0) if j_star is None else (lambda j: j == j_star)
+        self.targets = [D.code[s] for s in range(S.n_spots) if marked(S.jtab[s])]
 
     # -- helpers ---------------------------------------------------------
     def new(self, name: str = "") -> QuantumCircuit:
