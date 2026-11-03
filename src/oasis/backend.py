@@ -82,13 +82,6 @@ class CountingSampler(BaseSamplerV2):
         return self._inner.run(prepared, shots=shots)
 
 
-def run_shots(sampler: CountingSampler, circ: QuantumCircuit, shots: int) -> list[str]:
-    """Simulate ``shots`` independent runs and return the outcomes in order.
-    Nothing is charged here; the caller charges each run it actually uses."""
-    res = sampler.run([(circ,)], shots=shots, charge=False).result()[0]
-    reg = next(iter(res.data.keys()))
-    return getattr(res.data, reg).get_bitstrings()
-
 
 class _Job:
     def __init__(self, result):

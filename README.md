@@ -13,6 +13,29 @@ uv run oasis --L 6 --jstar "937 + 321i"   # small instance, seconds
 
 The output of the full run is in [`results/part1_L12.txt`](results/part1_L12.txt).
 
+## Result (p = 1019, A0 = 977 + 297i, L = 12, j* = 797 + 921i)
+
+* **k = 37 routes**, pinned by IAE at confidence ≥ 0.99. The final interval
+  for k was [36.61, 37.46].
+* Grover search with 8 iterations per run took 137 runs to collect all 37
+  distinct routes. One measured route failed its classical check, as expected
+  with success probability just under 1.
+* The list of 37 routes is in the results file. A test-only brute-force walk
+  of all 4096 routes gives exactly the same set.
+* Queries: 854,784 for counting plus 26,304 for search. Classical certainty
+  costs N·L = 49,152 steps, and the best-possible quantum find-all about
+  13,000 steps.
+  - On a campus this small, our counting is far above both, for three
+    reasons: IAE's constant factors (32 shots per round, the log(1/α) and
+    union-bound terms), and the ε-halving re-runs (about 2× in total). Pinning
+    k = 37 exactly needs Grover depth on the order of √((k+1)(N−k)) ≈ 390;
+    IAE's deepest power was 310.
+  - The search itself (26k) is within 2× of the find-all bound.
+  - The asymptotic scaling, not this constant, is what carries over to the
+    real campus.
+* Wall time: 65 minutes on 4 CPU cores (Aer statevector, 22 qubits), almost
+  all of it counting.
+
 ## Pipeline
 
 | Step | Where | What, and why |

@@ -1,0 +1,61 @@
+survey: 255 spots, 510 roads walked (<= 2 per spot)
+circuit: 22 qubits (route 12, merge 2, spot 8); step = 17 single-target gates; simulator: Aer statevector
+ANC phase marks spot code(s) [21, 104, 249] (j = 797 + 921i)
+  IAE run eps=5.00e-02: max power 3, k in [3.069, 58.407]  queries=4224  [45s]
+  IAE run eps=2.50e-02: max power 12, k in [30.021, 51.184]  queries=19584  [150s]
+  IAE run eps=1.25e-02: max power 12, k in [29.346, 43.933]  queries=29184  [151s]
+  IAE run eps=6.25e-03: max power 37, k in [33.768, 40.715]  queries=57984  [417s]
+  IAE run eps=3.13e-03: max power 60, k in [34.029, 38.171]  queries=92160  [680s]
+  IAE run eps=1.56e-03: max power 144, k in [36.191, 38.018]  queries=210048  [1658s]
+  IAE run eps=7.81e-04: max power 310, k in [36.612, 37.463]  queries=441600  [3844s]
+quantum count: k = 37  (confidence >= 0.9900)
+Grover search: 8 iterations/run, 137 runs, 1 rejected by the classical check
+routes (each confirmed by one classical walk):
+  000001000101
+  000100001000
+  000101000000
+  000111011010
+  001000111001
+  001001111001
+  001011111001
+  001100010101
+  001110001100
+  010001100101
+  010001101001
+  010011000010
+  010011101001
+  010100001001
+  010110010010
+  010111100000
+  011000000100
+  011001010101
+  011011111110
+  011110110101
+  100000111100
+  100100111100
+  101010000010
+  101011011110
+  101011100000
+  101011100100
+  101110000010
+  101111011110
+  101111100000
+  101111100100
+  110010111101
+  110011010100
+  110100001111
+  110101101100
+  111000010101
+  111010111001
+  111110000010
+
+queries (one query = one use of the one-step circuit):
+  counting  : 854784
+  search    : 26304
+  total     : 881088
+reference (N = 2^12 = 4096, k = 37):
+  classical, certain   : Theta(N) route checks = N*L = 49152 steps
+  quantum find-all     : Theta(sqrt(N k)) oracle calls ~ 542.2 -> 13013 steps
+  quantum exact count  : Theta(sqrt((k+1)(N-k+1))) ~ 392.8 oracle calls -> 9427 steps
+confidence the list is complete: >= 0.9900 (k pinned at level 1-alpha, and 37 distinct verified routes)
+time: 3915.5s
