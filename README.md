@@ -93,7 +93,7 @@ $$
 The roots are ordered using the key
 
 $$
-\operatorname{key}(u+vi)=u+pv.
+\text{key}(u+vi)=u+pv.
 $$
 
 For the starting parameter $A_0=977+297i$, this gives
@@ -223,10 +223,10 @@ $$
 We select the representative with smaller key. Define
 
 $$
-\operatorname{can}(z)=
+\text{can}(z)=
 \begin{cases}
-z,&\operatorname{key}(z)<\operatorname{key}(-z),\\
--z,&\operatorname{key}(-z)<\operatorname{key}(z).
+z, & \text{key}(z)<\text{key}(-z),\\
+-z, & \text{key}(-z)<\text{key}(z).
 \end{cases}
 $$
 
@@ -234,7 +234,7 @@ Thus the two forward transitions are completely determined by
 
 $$
 \boxed{
-T_b(A)=\operatorname{can}(2-4r_b^2),
+T_b(A)=\text{can}(2-4r_b^2),
 \qquad b\in\{0,1\}.
 }
 $$
@@ -274,9 +274,9 @@ $$
 A route reaches ANC exactly when
 
 $$
-H(x)=j^*,
+H(x)=j_{\mathrm{target}},
 \qquad
-j^*=797+921i
+j_{\mathrm{target}}=797+921i.
 $$
 
 for Ankan's instance.
