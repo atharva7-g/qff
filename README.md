@@ -1,5 +1,7 @@
 # Isogenies on Oasis
 
+**Contributors:** Uday Lathar ([@uday232523](https://github.com/uday232523)), Nihar Maheshwari ([@Cognoscenti007](https://github.com/Cognoscenti007)), Atharva ([@atharva7-g](https://github.com/atharva7-g))
+
 **Report:** [`report/report.pdf`](report/report.pdf) · **Slides:** [`slides/slides.pdf`](slides/slides.pdf) · **Repo:** <https://github.com/atharva7-g/qff>
 
 Qiskit Fall Fest 2026 × BITS Pilani, Track 1. The full problem statement is in
