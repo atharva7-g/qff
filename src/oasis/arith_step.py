@@ -9,7 +9,10 @@ run backwards, which returns every work qubit to 0.
 
 Forward part:
   d  = A^2 - 4
-  s  = sqrt(d), Adj & Rodriguez-Henriquez 2014, Algorithm 9 (p = 3 mod 4):
+  s  = sqrt(d), any root (the sort below makes the result the same):
+       default ``sqrt_norm``: from the norm, 2 exponentiations in F_p;
+       baseline ``sqrt_alg9``: Adj & Rodriguez-Henriquez 2014, Algorithm 9
+       (p = 3 mod 4), 2 exponentiations in F_{p^2}:
          a1 = d^((p-3)/4),  x0 = a1 d,  alpha = a1 x0  (= d^((p-1)/2))
          s  = (1 + alpha)^((p-1)/2) x0  +  [alpha = -1] i x0
        (if alpha = -1 then 1 + alpha = 0, so the first term is 0: the "if"

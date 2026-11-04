@@ -245,45 +245,82 @@ def fit_power(ns, ys) -> tuple[float, float]:
     return float(math.exp(logc)), float(k)
 
 
+VARIANTS = [                        # each row adds one change to the row above
+    ("baseline", BASELINE),
+    ("+ comparator", Variant(True, False, False, False)),
+    ("+ Karatsuba", Variant(True, True, False, False)),
+    ("+ norm sqrt", Variant(True, True, True, False)),
+    ("+ parallel (default)", BEST),
+]
+BBHT = 9 / 4          # BBHT 1998, Thm 3: expected iterations <= (9/4) sqrt(N/t), t unknown
+MAXDEPTH = (40, 64, 96)   # NIST PQC call (2016): log2 of the depth limit
+
+
 def search_cost(step: Cost, tower: Cost, frac_sqrt_p: float, L: int | None = None) -> dict:
-    """Part 2 at this p with BBHT-free optimal depth: iterations = (pi/4) / sqrt(a),
-    a = frac_sqrt_p / sqrt(p).  One iteration = 2L steps + 1 tower test (phase
-    version: compute, Z, uncompute = the same cost) + diffusion on L qubits
-    (an L-controlled Z, 2L Toffolis).  Out-of-place steps keep A_0..A_L."""
+    """Part 2 at this p.  Target fraction a = frac_sqrt_p / sqrt(p); Grover
+    iterations (pi/4) / sqrt(a) when a is known, about BBHT/(pi/4) = 2.9x more
+    when it is not.  One iteration = 2L steps (walk, then the walk backwards)
+    + 1 tower test (it already uncomputes itself: the phase oracle replaces
+    its copy-out CX by a Z, the same cost) + diffusion on L qubits (an
+    L-controlled Z: 2L Toffolis, its ancillas reuse the work area).
+    Out-of-place steps keep A_0..A_L: L + (L+1) 2n qubits + one work area.
+    L = 2n: the non-backtracking walk on the 3-regular Ramanujan graph mixes
+    in about 2 log2(#spots) ~ 2n steps (Alon-Benjamini-Lubetzky-Sodin 2007).
+
+    Depth: iterations x (2L step depth + tower depth + 2L).  With a limit of
+    2^m on the depth, split the search over S = (D / 2^m)^2 machines (each
+    searches 1/S of the space: depth / sqrt S, Zalka 1999), so the total
+    Toffoli count grows by sqrt S = D / 2^m."""
     p, n = step.p, step.n
     L = L or 2 * n
     a = frac_sqrt_p / math.sqrt(p)
     iters = math.pi / 4 / math.sqrt(a)
     per_iter = 2 * L * step.toffoli + tower.toffoli + 2 * L
+    depth_iter = 2 * L * step.depth_ub + tower.depth_ub + 2 * L
     work = max(step.qubits - 4 * n - 1, tower.qubits - 2 * n - 1)
     qubits = L + (L + 1) * 2 * n + work
+    depth = iters * depth_iter
+    limits = {m: max(1.0, depth / 2 ** m) for m in MAXDEPTH}       # sqrt S per limit
     return dict(L=L, a=a, iterations=iters, toffoli_per_iteration=per_iter,
-                toffoli=iters * per_iter, qubits=qubits)
+                toffoli=iters * per_iter, qubits=qubits, depth=depth,
+                cx=iters * (2 * L * step.cx + tower.cx), limits=limits)
 
 
 def run_part3(p: int = 1019, check: bool = True, workers: int = 32,
-              scan_bits=(10, 12, 16, 24, 32, 48, 64, 96, 128, 192), big_bits: int = 256, frac_sqrt_p: float = 7.0, say=print) -> dict:
+              scan_bits=(10, 12, 16, 24, 32, 48, 64, 96, 128, 192), big_bits: int = 256,
+              frac_sqrt_p: float = 7.0, pairs: int = 64, say=print) -> dict:
     t0 = time.time()
     out = {}
-    st, tw = cost_of("step", p, depth=True), cost_of("tower", p, depth=True)
-    say(f"arithmetic step for p = {p} (n = {st.n} bits); basis {{x, cx, ccx}}, CSWAP = 1 Toffoli + 2 CX")
-    for name, c in (("step", st), ("tower test", tw)):
-        say(f"  {name:<10} qubits {c.qubits:>6,}  Toffoli {c.toffoli:>9,}  T {c.t_count():>10,} "
-            f"(7/Toffoli)  CX {c.cx:>10,}  X {c.x:>7,}  depth {c.depth:>10,} "
-            f"(block bound {c.depth_ub:,})")
+    say(f"arithmetic step for p = {p}; basis {{x, cx, ccx}}, CSWAP = 1 Toffoli + 2 CX; exact depth")
+    say(f"  {'circuit':<22} {'qubits':>6} {'Toffoli':>9} {'CX':>9} {'depth':>10}  | "
+        f"{'tower qubits':>12} {'Toffoli':>7} {'depth':>8}")
+    for name, v in VARIANTS:
+        st, tw = cost_of("step", p, depth=True, v=v), cost_of("tower", p, depth=True, v=v)
+        say(f"  {name:<22} {st.qubits:>6,} {st.toffoli:>9,} {st.cx:>9,} {st.depth:>10,}  | "
+            f"{tw.qubits:>12,} {tw.toffoli:>7,} {tw.depth:>8,}")
+    say(f"  default circuit: X {st.x:,}; T = 7/Toffoli {st.t_count(7):,} (Amy et al. 2013), "
+        f"4/Toffoli {st.t_count(4):,} (Jones 2013, one measured ancilla)")
     out.update(step=st, tower=tw)
 
     if check:
-        say(f"checking every spot and both bits on Aer matrix_product_state ({workers} processes) ...")
+        say(f"checks of the default circuit on Aer matrix_product_state ({workers} processes):")
         r = check_step(p, workers)
         say(f"  step : {r.cases} cases, {len(r.wrong)} wrong, {r.inputs_changed} changed inputs, "
             f"{r.dirty} with a work qubit not 0  -> {'PASS' if r.ok else 'FAIL'}  [{time.time() - t0:.0f}s]")
         rt = check_tower(p, workers)
         say(f"  tower: {rt.cases} spots, {len(rt.wrong)} wrong, {rt.inputs_changed} changed inputs, "
             f"{rt.dirty} with a work qubit not 0  -> {'PASS' if rt.ok else 'FAIL'}  [{time.time() - t0:.0f}s]")
-        out.update(check_step=r, check_tower=rt)
+        k, bad = pair_test(p, pairs, workers)
+        say(f"  pairs: {k} superpositions (cos w|x> + e^(i phi) sin w|y>) through New, then baseline^-1: "
+            f"{len(bad)} not back to |0>  -> {'PASS' if not bad else 'FAIL'}  [{time.time() - t0:.0f}s]")
+        q16 = prime_3mod4(16)
+        r16 = check_step(q16, workers, spots=random_spots(q16, workers // 2))
+        say(f"  p = {q16}: {r16.cases} cases on random spots, {len(r16.wrong)} wrong, "
+            f"{r16.dirty} dirty  -> {'PASS' if r16.ok else 'FAIL'}  [{time.time() - t0:.0f}s]")
+        out.update(check_step=r, check_tower=rt, pairs=(k, bad), check_16=r16)
 
-    say("\ncost against the size of p (exact counts from the block hierarchy; p ~ 2^(n - 1/2)):")
+    say("\ncost of the default circuit against the size of p (exact counts from the block hierarchy; "
+        "p ~ 2^(n - 1/2)):")
     say(f"  {'n':>4} {'qubits':>9} {'Toffoli':>15} {'T (7/Tof)':>16} {'depth bound':>14}  | "
         f"{'tower qubits':>12} {'tower Toffoli':>14}")
     rows = []
@@ -299,16 +336,26 @@ def run_part3(p: int = 1019, check: bool = True, workers: int = 32,
         c_, k_ = fit_power(ns[-3:], ys[-3:])
         say(f"  {name:<8} ~ {c_:.2f} n^{k_:.2f}   (fit on the 3 largest n)")
     big_s, big_t = rows[-1]
+    base_s = cost_of("step", big_s.p, v=BASELINE)
+    say(f"  baseline at n = {big_bits}: qubits {base_s.qubits:,}, Toffoli {base_s.toffoli:,} "
+        f"(default / baseline = {big_s.toffoli / base_s.toffoli:.2f})")
     say(f"  p used at n = {big_bits}: {big_s.p}")
     out.update(table=rows)
 
     sc = search_cost(big_s, big_t, frac_sqrt_p)
-    say(f"\nPart 2 at p ~ 2^{big_bits}: a ~ {frac_sqrt_p:g} / sqrt(p) = 2^{math.log2(sc['a']):.1f}, "
-        f"L = {sc['L']}")
-    say(f"  Grover iterations (pi/4) / sqrt(a) ~ 2^{math.log2(sc['iterations']):.1f}")
+    lg = math.log2
+    say(f"\nPart 2 at p ~ 2^{big_bits}: a ~ {frac_sqrt_p:g} / sqrt(p) = 2^{lg(sc['a']):.1f}, L = 2n = {sc['L']}")
+    say(f"  Grover iterations (pi/4) / sqrt(a) ~ 2^{lg(sc['iterations']):.1f}  "
+        f"(a not known: BBHT, <= {BBHT / (math.pi / 4):.2f}x this on average)")
     say(f"  per iteration: 2L steps + 1 tower test + diffusion = {sc['toffoli_per_iteration']:.3e} Toffoli")
-    say(f"  total ~ 2^{math.log2(sc['toffoli']):.1f} Toffoli = {sc['toffoli']:.2e}  "
-        f"(T ~ {7 * sc['toffoli']:.2e}); qubits ~ {sc['qubits']:,.0f}")
+    say(f"  total ~ 2^{lg(sc['toffoli']):.1f} Toffoli = {sc['toffoli']:.2e}; T ~ {7 * sc['toffoli']:.2e} (7/Toffoli), "
+        f"{4 * sc['toffoli']:.2e} (4/Toffoli); CX ~ 2^{lg(sc['cx']):.1f}")
+    say(f"  logical qubits ~ {sc['qubits']:,.0f};  depth ~ 2^{lg(sc['depth']):.1f}")
+    for m, f in sc["limits"].items():
+        say(f"  MAXDEPTH 2^{m}: " + ("fits" if f == 1 else
+            f"{f * f:.1e} = 2^{2 * lg(f):.0f} machines, total 2^{lg(sc['toffoli'] * f):.1f} Toffoli"))
+    years = sc["depth"] * 1e-6 / 3.15e7
+    say(f"  one machine at 1 us per layer of depth: {years:.1e} years")
     say(f"time: {time.time() - t0:.0f}s")
     out["search"] = sc
     return out

@@ -210,6 +210,7 @@ def main(argv=None):
     ap.add_argument("--out", default="results")
     ap.add_argument("--workers", type=int, default=32, help="Part 3: processes for the checks")
     ap.add_argument("--no-check", action="store_true", help="Part 3: costs only, skip the 510 checks")
+    ap.add_argument("--pairs", type=int, default=64, help="Part 3: superposition pairs in the phase test")
     a = ap.parse_args(argv)
     for k, v in DEFAULTS[a.part].items():
         if getattr(a, k) is None:
@@ -218,7 +219,7 @@ def main(argv=None):
         run(a.p, a.A0, a.L, a.jstar, a.alpha, a.method, a.shots, a.seed)
     elif a.part == 3:
         from .part3 import run_part3
-        run_part3(a.p, check=not a.no_check, workers=a.workers)
+        run_part3(a.p, check=not a.no_check, workers=a.workers, pairs=a.pairs)
     else:
         scan = tuple(a.scan_bits) if a.scan_bits[1] > a.scan_bits[0] else ()
         run_part2(a.p, a.A0, a.L, a.iterations, scan_bits=scan, walks=a.walks,
