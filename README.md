@@ -1,6 +1,6 @@
 # Isogenies on Oasis
 
-**Team:** Three Qiskiteers
+**Team:** The Three Qiskiteers
 
 **Contributors:** Uday Lathar ([@uday232523](https://github.com/uday232523)), Nihar Maheshwari ([@Cognoscenti007](https://github.com/Cognoscenti007)), Atharva Gupta ([@atharva7-g](https://github.com/atharva7-g))
 
