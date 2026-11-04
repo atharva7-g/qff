@@ -28,7 +28,7 @@ $$
   $j$-invariant of the spot where it ends:
   $H(x)=j(E_{A_L})=\dfrac{256(A_L^2-3)^3}{A_L^2-4}$.
 
-| | |
+| Parameter | Value |
 |---|---|
 | $p$ | 1019 |
 | Maths department (start) | $A_0 = 977 + 297i$ |
