@@ -172,7 +172,9 @@ class Prog:
         return z
 
     def pow(self, a, e: int) -> list:
-        """a^e in F_p, left-to-right square and multiply; intermediates are kept."""
+        """a^e in F_p, left-to-right square and multiply; intermediates are kept.
+        e = 1 returns a itself (the same qubits)."""
+        assert e >= 1
         acc = a
         for bit in bin(e)[3:]:
             acc = self.sqr(acc)
@@ -322,7 +324,9 @@ class Prog:
         return c
 
     def pow2(self, a, e: int):
-        """a^e, left-to-right square and multiply; intermediates are kept."""
+        """a^e, left-to-right square and multiply; intermediates are kept.
+        e = 1 returns a itself (the same qubits)."""
+        assert e >= 1
         acc = a
         for bit in bin(e)[3:]:
             acc = self.sqr2(acc)
@@ -341,6 +345,8 @@ def sqrt_alg9(P: Prog, d):
     """Adj & Rodriguez-Henriquez 2014, Algorithm 9: 2 exponentiations in F_{p^2}."""
     p = P.p
     a1 = P.pow2(d, (p - 3) // 4)
+    if a1 is d:                                             # (p - 3)/4 = 1 (p = 7)
+        a1 = P.copy2(d)
     x0 = P.mul2(a1, d)
     alpha = P.mul2(a1, x0)
     minus1 = P.alloc(1)[0]

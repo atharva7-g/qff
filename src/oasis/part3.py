@@ -22,7 +22,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
-from qiskit import ClassicalRegister, QuantumCircuit
+from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.circuit import Parameter
 from qiskit_aer import AerSimulator
 
@@ -85,6 +85,91 @@ def simulate(kind: str, p: int, cases: list, workers: int = 32, v: Variant = BES
     ctx = multiprocessing.get_context("spawn")     # Aer is multi-threaded: no fork
     with ProcessPoolExecutor(len(chunks), mp_context=ctx) as ex:
         return [r for part in ex.map(_worker, [(kind, p, c, v) for c in chunks]) for r in part]
+
+
+def _cry(qc, theta, c, t):
+    """Controlled RY(theta) from RY and CX (Aer's MPS method has no CRY)."""
+    qc.ry(theta / 2, t)
+    qc.cx(c, t)
+    qc.ry(-theta / 2, t)
+    qc.cx(c, t)
+
+
+def _pair_worker(job):
+    p, pairs, v_new, v_ref, fault = job
+    New, Ref = StepCircuit(p, v_new), StepCircuit(p, v_ref)
+    ins, outs = _inputs(New, "step"), _outputs(New, "step")
+    io_ref = _inputs(Ref, "step") + _outputs(Ref, "step")
+    rest_ref = [q for q in Ref.qc.qubits if q not in set(io_ref)]
+    extra = QuantumRegister(len(rest_ref), "ref_work")
+    c = QuantumRegister(1, "c")
+    qc = QuantumCircuit(c, *New.qc.qregs, extra)
+    qc.add_register(ClassicalRegister(qc.num_qubits, "m"))
+    phi = Parameter("phi")
+    tx = [Parameter(f"x{k}") for k in range(len(ins))]
+    td = [Parameter(f"d{k}") for k in range(len(ins))]
+    prep = QuantumCircuit(*qc.qregs)
+    prep.ry(1.1, c[0])                                  # cos(.55)|0> + sin(.55)|1>: unequal
+    prep.p(phi, c[0])                                   # weights (equal Schmidt values made
+                                                        # Aer's MPS lose the phase for some phi)
+    for q, a, d in zip(ins, tx, td):
+        prep.rx(a, q)                                   # |x>
+        _cry(prep, d, c[0], q)                          # c = 1: flip the bits where y != x
+    qc.compose(prep, inplace=True)
+    qc.compose(flatten(New.qc), qubits=New.qc.qubits, inplace=True)
+    if fault:
+        qc.z(New.b)                                     # negative control: phase (-1)^b
+    where = {q: i for i, q in enumerate(io_ref)}
+    mapping = [(ins + outs)[where[q]] if q in where else extra[rest_ref.index(q)] for q in Ref.qc.qubits]
+    qc.compose(flatten(Ref.qc).reverse_ops(), qubits=mapping, inplace=True)   # X, CX, CCX, CSWAP: self-inverse
+    qc.compose(prep.inverse(), inplace=True)
+    qc.measure(qc.qubits, qc.clbits)
+    binds = {phi: [ph for _, _, ph in pairs]}
+    for k in range(len(ins)):
+        bx = [_encode("step", New.n, x)[k] for x, _, _ in pairs]
+        by = [_encode("step", New.n, y)[k] for _, y, _ in pairs]
+        binds[tx[k]] = [math.pi * u for u in bx]
+        binds[td[k]] = [math.pi * (u ^ w) for u, w in zip(bx, by)]
+    sim = AerSimulator(method="matrix_product_state", max_parallel_threads=1)
+    res = sim.run(qc, shots=8, parameter_binds=[binds]).result()
+    return [(x, y, set(res.get_counts(i)) == {"0" * qc.num_qubits}) for i, (x, y, _) in enumerate(pairs)]
+
+
+def pair_test(p: int, k: int | None = None, workers: int = 32, v_new: Variant = BEST,
+              v_ref: Variant = BASELINE, seed: int = 7, fault: bool = False) -> tuple[int, list]:
+    """Phase check against the reference circuit (already checked on basis states):
+
+        (cos w |0>|x> + e^{i phi} sin w |1>|y>)  -> New -> Ref^-1 -> undo the preparation
+
+    gives |0...0> with probability 1 - sin^2(2w) sin^2((theta(y) - theta(x))/2),
+    where New|x> = e^{i theta(x)} Ref|x> and w = 0.55.  fault=True adds a Z on
+    b after New (a wrong phase (-1)^b), so pairs with different b must fail.  The pairs form a path through k + 1 of
+    the inputs (all inputs if k is None), so passing every pair gives
+    theta(x) = theta for all of them: New = Ref, also on every superposition.
+    Returns (pairs tested, failed pairs)."""
+    import random
+    rnd = random.Random(seed)
+    cases = [(A, b) for A in survey(p).spots for b in (0, 1)]
+    rnd.shuffle(cases)
+    path = cases if k is None else cases[:k + 1]
+    pairs = [(x, y, rnd.uniform(0, 2 * math.pi)) for x, y in zip(path, path[1:])]
+    chunks = [pairs[i::workers] for i in range(workers) if pairs[i::workers]]
+    ctx = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(len(chunks), mp_context=ctx) as ex:
+        res = [r for part in ex.map(_pair_worker, [(p, ch, v_new, v_ref, fault) for ch in chunks]) for r in part]
+    return len(res), [(x, y) for x, y, ok in res if not ok]
+
+
+def random_spots(p: int, k: int, seed: int = 3) -> list:
+    """k distinct spots from a random walk from A = 0 (E_0 is supersingular for p = 3 mod 4)."""
+    import random
+    rnd, C, A, out = random.Random(seed), Campus(p), (0, 0), {}
+    for _ in range(64):                                  # leave the start
+        A = C.step(A, rnd.randrange(2))
+    while len(out) < k:
+        A = C.step(A, rnd.randrange(2))
+        out[A] = None
+    return list(out)
 
 
 @dataclass

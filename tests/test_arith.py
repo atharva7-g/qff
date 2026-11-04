@@ -13,7 +13,7 @@ from oasis.arith import ModP
 from oasis.arith_cost import count, depth_ub, flatten
 from oasis.arith_step import BASELINE, Prog, StepCircuit, sqrt_norm
 from oasis.field import Field
-from oasis.part3 import check_step, check_tower, prime_3mod4
+from oasis.part3 import check_step, check_tower, pair_test, prime_3mod4, random_spots
 from oasis.survey import survey
 from oasis.walk import Campus
 
@@ -136,6 +136,31 @@ def test_sqrt_norm_random_squares(p):
 def test_step_baseline_small_campus():
     r = check_step(19, workers=4, v=BASELINE)
     assert r.cases == 2 * survey(19).n_spots and r.ok
+
+
+def test_alg9_builds_for_p7():
+    StepCircuit(7, BASELINE)
+
+
+def test_pair_phase_test_every_input_p43():
+    # a path through all 22 inputs: the new circuit equals the baseline with phases
+    n, failed = pair_test(43, None, workers=8)
+    assert n == 2 * survey(43).n_spots - 1 and not failed
+    # negative control: a phase (-1)^b after the new circuit is found on every
+    # pair whose b differs, and only there
+    n, failed = pair_test(43, None, workers=8, fault=True)
+    import random
+    rnd = random.Random(7)
+    cases = [(A, b) for A in survey(43).spots for b in (0, 1)]
+    rnd.shuffle(cases)
+    differ = {(x, y) for x, y in zip(cases, cases[1:]) if x[1] != y[1]}
+    assert set(failed) == differ
+
+
+def test_step_random_spots_16_bit_prime():
+    p = prime_3mod4(16)
+    r = check_step(p, workers=8, spots=random_spots(p, 4))
+    assert r.cases == 8 and r.ok
 
 
 def test_counts_agree_with_flat_circuit():
