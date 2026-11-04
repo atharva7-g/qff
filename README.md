@@ -1,385 +1,89 @@
-# Isogenies on Oasis — Part 1: the password
+# Isogenies on Oasis
 
-Find **every** L-step route from the Maths department (A0) to ANC (j*) on Ankan's
-2-isogeny campus with a quantum procedure, say how confident we are that the list
-is complete, and count the queries (uses of the one-step circuit).
+**Report:** [`report/report.pdf`](report/report.pdf) · **Slides:** [`slides/slides.pdf`](slides/slides.pdf) · **Repo:** <https://github.com/atharva7-g/qff>
+
+Qiskit Fall Fest 2026 × BITS Pilani, Track 1. The full problem statement is in
+[`PROBLEM.md`](PROBLEM.md).
+
+## Problem setup
+
+Every spot on campus is a curve
+
+$$
+E_A:\quad y^2=x^3+Ax^2+x,\qquad A\in\mathbb F=\mathbb F_p(i),\quad p\equiv3\pmod4,\quad i^2=-1.
+$$
+
+* **Roads.** Each spot has three roads, which are 2-isogenies. A route never
+  goes back along the road it arrived by, so there are two roads forward, 0 and 1.
+  Their kernels are the 2-torsion points $(r_0,0)$ and $(r_1,0)$ other than
+  $(0,0)$. The roots $r_{0,1}=\tfrac{-A\pm\sqrt{A^2-4}}{2}$ are sorted by
+  $\mathrm{key}(u+vi)=u+pv$.
+* **One step.** Bit $b$ takes the road through $r_b$ and lands on $E_{A'}$ or
+  $E_{-A'}$ with $A'=2-4r_b^2$. Of the two, the one with the smaller key is kept.
+* **Passwords.** A password is a route $x=b_1\cdots b_L$. Its value is the
+  $j$-invariant of the spot where it ends:
+  $H(x)=j(E_{A_L})=\dfrac{256(A_L^2-3)^3}{A_L^2-4}$.
+
+| | |
+|---|---|
+| $p$ | 1019 |
+| Maths department (start) | $A_0 = 977 + 297i$ |
+| Route length | $L = 12$ |
+| ANC (target) | $j^* = 797 + 921i$ |
+| Clock Tower | every spot with $j \in \mathbb F_p$ |
+
+The tasks:
+
+1. **The password.** Find every route from $A_0$ to ANC with a quantum
+   procedure, give the confidence that the list is complete, and count the queries.
+2. **The phone on the Clock Tower.** Give the quantum cost, as a power of $p$,
+   of reaching the Clock Tower, with an upper bound, a matching lower bound, and data.
+3. **The Oasis map.** Build one step from arithmetic in $\mathbb F$ alone, check
+   it at $p=1019$, and give its cost at $p\approx2^{256}$.
+4. **The Djinns.** Shuffle the spot names at random and say what still works.
+
+The rules (one walk of every road before the search, no classical route
+planning, the ANC test inside the circuit) are in [`PROBLEM.md`](PROBLEM.md).
+
+## Reproduction
+
+Needs Python 3.13 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
+git clone https://github.com/atharva7-g/qff
+cd qff
 uv sync
-uv run pytest                      # classical checks + gate-level + end-to-end (small L)
-uv run oasis                       # Ankan's instance: p = 1019, L = 12, 22 qubits
-uv run oasis --L 6 --jstar "937 + 321i"   # small instance, seconds
+uv run pytest
 ```
 
-The output of the full run is in [`results/part1_L12.txt`](results/part1_L12.txt).
+Every result comes from one command, `oasis`. It takes `--p`, `--A0`, `--L` and
+`--jstar`. The defaults are the instance above.
 
-## Result (p = 1019, A0 = 977 + 297i, L = 12, j* = 797 + 921i)
+```bash
+# Part 1: all routes to ANC, the count and the queries
+uv run oasis --part 1 --p 1019 --A0 "977 + 297i" --L 12 --jstar "797 + 921i" | tee results/part1_L12.txt
 
-* **k = 37 routes**, pinned by IAE at confidence ≥ 0.99. The final interval
-  for k was [36.61, 37.46].
-* Grover search with 8 iterations per run took 137 runs to collect all 37
-  distinct routes. One measured route failed its classical check, as expected
-  with success probability just under 1.
-* The list of 37 routes is in the results file. A test-only brute-force walk
-  of all 4096 routes gives exactly the same set.
-* Queries: 854,784 for counting plus 26,304 for search. Classical certainty
-  costs N·L = 49,152 steps, and the best-possible quantum find-all about
-  13,000 steps.
-  - On a campus this small, our counting is far above both, for three
-    reasons: IAE's constant factors (32 shots per round, the log(1/α) and
-    union-bound terms), and the ε-halving re-runs (about 2× in total). Pinning
-    k = 37 exactly needs Grover depth on the order of √((k+1)(N−k)) ≈ 390;
-    IAE's deepest power was 310.
-  - The search itself (26k) is within 2× of the find-all bound.
-  - The asymptotic scaling, not this constant, is what carries over to the
-    real campus.
-* Wall time: 65 minutes on 4 CPU cores (Aer statevector, 22 qubits), almost
-  all of it counting.
+# Part 2: Clock-Tower data over primes and the Grover demonstration (p = 5923)
+uv run oasis --part 2 | tee results/part2.txt
 
-## Pipeline
+# Part 3: the arithmetic step, all 510 checks, and the cost at p ≈ 2^256
+uv run oasis --part 3 | tee results/part3.txt
+```
 
-| Step | Where | What, and why |
-|---|---|---|
-| Field | `src/oasis/field.py` | F_{p²} arithmetic. √ via the norm: with p ≡ 3 (mod 4) a square root in F_p is one exponentiation. O(log p), so it would work at p ≈ 2^256. |
-| Walk | `src/oasis/walk.py` | Roads `r0 < r1` (roots of `x² + Ax + 1`, ordered by key), transition `A' = 2(1−2r_b²)`, keep the smaller-key form of `±A'`. The derivation and destination `j`-invariant are given below. Reproduces all 7 of Ankan's checks. Used only by the survey and to check a *measured* route once. |
-| Survey | `src/oasis/survey.py` | BFS from A = 0 (E_0 is supersingular since p ≡ 3 mod 4). Takes only `p`: no A0, L or j*. 255 spots, 510 roads, ≤ 2 per spot. |
-| Step design | `src/oasis/circuits.py` `StepDesign` | Turns the survey into a reversible, *in-place* step (below). |
-| Synthesis | `src/oasis/reversible.py` | The 9-bit step permutation → 17 single-target gates (2n−1 theorem), each one Qiskit `UCGate` (an I/X multiplexer, native in Aer). |
-| At ANC? | `WalkCircuits.anc_phase` | One `DiagonalGate` on the spot register: −1 on the codes of curves with j = j*. Never evaluates H. If no spot has j*, it is the identity, so k = 0. |
-| Count | `src/oasis/count.py` | `qiskit_algorithms.IterativeAmplitudeEstimation` on a = k/N, re-run with a tighter ε until the interval for k holds exactly one integer. |
-| Search | `src/oasis/search.py` | Grover (`qiskit.circuit.library.grover_operator`, reflection on the route register only), round(π/4θ − ½) iterations, measure, check each route with one classical walk, repeat until k distinct routes. |
-| Queries | `src/oasis/backend.py` | Every query reported is counted from the circuits (`step` / `step_dg` gates × shots actually used), not computed from a formula. |
+The full Part 1 run took 65 minutes on 4 CPU cores. A small instance finishes
+in seconds:
 
-## Mathematical setup: the two roads
+```bash
+uv run oasis --L 6 --jstar "937 + 321i"
+```
 
-The campus uses the family of elliptic curves
+Part 2 writes its plots to `results/`. Part 4 is a theoretical answer, written
+up in the report and the slides. Saved outputs of all runs are in
+[`results/`](results/).
 
-$$
-E_A:\quad y^2=x^3+Ax^2+x,\qquad A^2\ne 4,
-$$
+The report and the slides build with `pdflatex`:
 
-over $\mathbb F_{p^2}=\mathbb F_p(i)$, where $p=1019$ and $i^2=-1$.
-
-### Two-torsion and the two forward roads
-
-A point $P$ has order dividing two precisely when $P=-P$. Since negation on this Weierstrass model sends $(x,y)$ to $(x,-y)$,
-
-$$
-2P=\mathcal O
-\implies P=-P
-\implies (x,y)=(x,-y)
-\implies y=0.
-$$
-
-Therefore,
-
-$$
-y^2=x(x^2+Ax+1)=0.
-$$
-
-Thus the complete two-torsion subgroup is
-
-$$
-E_A[2]=
-\{\mathcal O,\,(0,0),\,(r_0,0),\,(r_1,0)\},
-$$
-
-where the two remaining torsion coordinates are the roots
-
-$$
-r_{0,1}=\frac{-A\pm\sqrt{A^2-4}}{2}.
-$$
-
-The roots are ordered using the key
-
-$$
-\text{key}(u+vi)=u+pv.
-$$
-
-For the starting parameter $A_0=977+297i$, this gives
-
-$$
-\boxed{
-r_0=1003+762i,\qquad r_1=58+979i.
-}
-$$
-
-These two nontrivial roots define the two forward roads.
-
-### Degree-two quotient isogeny
-
-For either $r\in\{r_0,r_1\}$, let
-
-$$
-P_r=(r,0).
-$$
-
-The subgroup generated by this point is
-
-$$
-G_r=\langle P_r\rangle
-=\{\mathcal O,P_r\}.
-$$
-
-**Theorem (kernel and quotient isogeny).**
-For an elliptic curve $E$ and a finite subgroup $G\subseteq E$, there exists a separable isogeny
-
-$$
-\phi:E\longrightarrow E/G
-$$
-
-whose kernel is exactly $G$. In our setting, the degree-two isogeny associated with the chosen forward road therefore has
-
-$$
-\boxed{
-\ker\phi_r=\{\mathcal O,(r,0)\}.
-}
-$$
-
-To construct it explicitly, translate the selected torsion point to the origin by setting $x=X+r$. The curve becomes
-
-$$
-y^2=X^3+aX^2+bX,
-$$
-
-where
-
-$$
-a=3r+A,\qquad b=3r^2+2Ar+1.
-$$
-
-Using $r^2+Ar+1=0$, these coefficients simplify to
-
-$$
-a=2r-\frac1r,\qquad b=r^2-1.
-$$
-
-**Vélu's isogeny formula.**
-For a curve
-
-$$
-E:\quad y^2=X^3+aX^2+bX
-$$
-
-with kernel $\{\mathcal O,(0,0)\}$, the quotient curve is
-
-$$
-E':\quad y^2=X^3-2aX^2+(a^2-4b)X.
-$$
-
-The corresponding isogeny homomorphism is
-
-$$
-\boxed{
-\phi(X,y)=
-\left(
-X+\frac bX,\;
-y\left(1-\frac b{X^2}\right)
-\right).
-}
-$$
-
-Here the point at infinity maps to the point at infinity, and the formula is interpreted by its regular extension at the kernel points.
-
-For our selected point $P_r$, we have
-
-$$
-a^2-4b=\frac1{r^2}.
-$$
-
-Hence the quotient curve is
-
-$$
-y^2=X^3
--2\left(2r-\frac1r\right)X^2
-+\frac1{r^2}X.
-$$
-
-### Normalization and the transition function
-
-To restore the coefficient of the linear term to $1$, apply the isomorphism
-
-$$
-X=u^2x,\qquad
-y_{\mathrm{old}}=u^3y_{\mathrm{new}},
-\qquad
-u^2=\pm\frac1r.
-$$
-
-The normalized quotient is again in the original family:
-
-$$
-E_{A'}:\quad y^2=x^3+A'x^2+x,
-$$
-
-with the two possible normalized parameters
-
-$$
-A'=2-4r^2
-\qquad\text{and}\qquad
--A'.
-$$
-
-We select the representative with smaller key. Define
-
-$$
-\text{can}(z)=
-\begin{cases}
-z, & \text{key}(z)<\text{key}(-z),\\
--z, & \text{key}(-z)<\text{key}(z).
-\end{cases}
-$$
-
-Thus the two forward transitions are completely determined by
-
-$$
-\boxed{
-T_b(A)=\text{can}(2-4r_b^2),
-\qquad b\in\{0,1\}.
-}
-$$
-
-This is the transition implemented by the campus walk.
-
-### Route evaluation and destination test
-
-For a binary route $x=b_1b_2\cdots b_L$, define recursively
-
-$$
-A_k=T_{b_k}(A_{k-1}),
-\qquad k=1,\ldots,L.
-$$
-
-The endpoint is $E_{A_L}$.
-
-**Theorem ($j$-invariant formula).**
-For the chosen Weierstrass family,
-
-$$
-\boxed{
-j(E_A)=
-\frac{256(A^2-3)^3}{A^2-4}.
-}
-$$
-
-Consequently, the route-evaluation function is
-
-$$
-\boxed{
-H(b_1\cdots b_L)=
-\frac{256(A_L^2-3)^3}{A_L^2-4}.
-}
-$$
-
-A route reaches ANC exactly when
-
-$$
-H(x)=j_{\mathrm{target}},
-\qquad
-j_{\mathrm{target}}=797+921i.
-$$
-
-for Ankan's instance.
-
-## The one-step circuit (22 qubits in total)
-
-| Register | Qubits | Role |
-|---|---|---|
-| `route` | L = 12 | the password bits |
-| `merge` | V = 2 | logs arrivals at the one spot where roads merge |
-| `spot` | 8 | code of the current curve (255 spots + 1 spare code) |
-
-**In place, no history.** Every spot has exactly two incoming roads, so a step
-(s, b) → t loses only one bit: which of the two roads it came in on. Step t
-writes that bit back into `route[t]`. The step is then a permutation of
-(spot, road bit), and the uncompute restores the route bits. Keeping the
-full history (Bennett) would cost 8 qubits per step, and the first version,
-with one tag qubit per step, needed 33 qubits.
-
-**The one exception.** A = 0 (j = 1728, which has the extra automorphism i)
-sends *both* roads to A = 6, so A = 6 has three incoming roads and A = 0 has
-only one. Arrivals at 6 coming from 0 are written to the spare code 255
-(A = 6 itself is coded 254). The step then:
-
-1. shifts the `merge` register on every arrival at 6;
-2. writes a 1 into the freed slot if the arrival came via 255;
-3. folds 255 back to 254 with a single bit flip.
-
-Arrivals at 6 are at least 8 steps apart (the shortest cycle through 6, a
-survey fact), so V = 1 + ⌊(L−1)/8⌋ = 2 qubits suffice.
-
-**Why single-target gates.** We measured these costs per gate in Aer on 23 qubits:
-
-| Gate | Time |
-|---|---|
-| dense 10-qubit `UnitaryGate` | 17.7 s |
-| dense 9-qubit `UnitaryGate` | 6.2 s |
-| 8-control `UCGate` | 28 ms |
-| native `mcx` | 2 ms |
-
-An MCX with *open* controls (`ctrl_state`) is not native and gets decomposed,
-so every multi-controlled gate here uses closed controls. Any permutation of
-n bits is a product of at most 2n−1 single-target gates (De Vos & Van
-Rentergem 2008). We implement the constructive proof (edge-colouring a
-2-regular bipartite multigraph per bit), giving 17 multiplexers per step.
-`step_dg` is the same list reversed: every gate is its own inverse.
-(Qiskit's generic `UCGate.inverse()` is not a multiplexer, and transpiles
-into about 4,000 gates.)
-
-## Confidence
-
-IAE returns a Clopper–Pearson interval that contains a = k/N with
-probability ≥ 1 − α. That is a finite-sample guarantee, not an asymptotic
-one.
-- **Stopping rule:** we stop when the interval for k = N·a contains exactly
-  one integer.
-- **Repeated looks:** each run uses level α/R (union bound over the at most R
-  runs), so the interval we stop on is valid with probability ≥ 1 − α.
-- **Completeness:** the search then holds k distinct routes, each confirmed by
-  one classical walk. So "the list is complete" holds with probability
-  ≥ 1 − α (default α = 0.01).
-
-We tried `MaximumLikelihoodAmplitudeEstimation` first. With a fixed
-exponential schedule and few shots, its likelihood kept a second lobe at
-k ± 1 (k = 5 vs 6 at N = 256). IAE chooses its powers so that θ never
-leaves one half-period, which rules that aliasing out.
-
-## Queries (N = 2^L, k routes, one query = one step)
-
-* **Classical, with certainty:** every route must be checked, Θ(N) routes,
-  i.e. N·L steps.
-* **Best possible quantum, finding all k:** Θ(√(Nk)) oracle calls
-  (Σ_{i≤k} (π/4)√(N/i)), each 2L steps.
-* **Exact quantum counting:** Θ(√((k+1)(N−k+1))) oracle calls.
-* **What we use:** IAE costs O(√(kN)·log(1/α)) Grover calls, plus Grover
-  search with about k·H_k runs of ≈ (π/4)√(N/k) calls.
-
-On this small campus (N = 4096) the constant factors of the counting step
-(shots per round, log(1/α), the union bound) make the measured total larger
-than walking all 4096 routes classically. The asymptotic gap, √(kN) against N,
-is what matters on the real campus, where N = 2^L and walking every route is
-out of the question. The program prints the measured numbers next to these
-references.
-
-## Rules followed
-
-* The survey depends on p only. The step circuit is built from it.
-* There is no path counting, backward search, meet-in-the-middle or route
-  listing in the algorithm. The only classical walk is the single check of a
-  measured route. (The tests brute-force small L, and L = 12 for the
-  classical step design only, purely to grade the answer.)
-* The ANC test is inside the circuit, on the spot register. It is a table on
-  this campus and becomes arithmetic in Part 3.
-* k = 0 is reported ("no route reaches ANC") instead of crashing; both ways it
-  can happen are tested.
-
-## How it's simulated
-
-22 qubits fit a dense Aer statevector (64 MB). Amplitude-estimation circuits
-A Q^m are prefixes of one sequence, so `SnapshotSampler` simulates the
-sequence once, saving the spot register's exact distribution after every
-power (`save_probabilities`). It resumes from a saved statevector
-(`set_statevector`) when IAE asks for a deeper power, and draws shots from
-those exact distributions. Shots drawn this way have the same distribution as
-running each circuit separately, and queries are charged as if each circuit
-were run on hardware.
+```bash
+cd report && pdflatex report.tex && pdflatex report.tex
+cd ../slides && pdflatex slides.tex && pdflatex slides.tex
+```
