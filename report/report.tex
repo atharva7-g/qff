@@ -34,7 +34,7 @@
 {\centering\large\bfseries Qiskit 2026 Track 1 --- Three Qiskiteers\par}
 \vspace{2pt}
 
-\section{Exhaustive Search and Classification of Valid Passwords}
+\section*{Part I: Exhaustive Search and Classification of Valid Passwords}
 
 The elliptic-curve background used here (isogenies, kernels, torsion
 subgroups, endomorphism rings, and supersingular curves) was studied
@@ -171,10 +171,10 @@ of our run against the classical and optimal quantum scales.}
 \label{fig:p1}
 \end{figure}
 
-\section{Part II: Quantum Search on the Supersingular Isogeny Graph}
+\section*{Part II: Quantum Search on the Supersingular Isogeny Graph}
 \footnotesize
 
-\subsection{Target set and its density}
+\subsection*{Target set and its density}
 
 Let \(V_p\) be the vertex set of the supersingular \(2\)-isogeny
 graph over \(\mathbb F_{p^2}\), and define the target set
@@ -207,7 +207,7 @@ Consequently, the proportion of target vertices is
 \boxed{\frac{|T_p|}{|V_p|}=p^{-1/2+o(1)}.}
 \]
 
-\subsection{From vertex density to route density}
+\subsection*{From vertex density to route density}
 
 A binary string \(x\in\{0,1\}^L\) specifies a
 non-backtracking walk of length \(L\). Let \(A_L(x)\) denote
@@ -267,7 +267,7 @@ q_L=\frac{|T_p|}{|V_p|}+O(p^{-1}\log p)
 Thus a uniformly random length-$L$ route is marked with
 probability $q_L$.
 
-\subsection{Grover search: construction of the marking oracle}
+\subsection*{Grover search: construction of the marking oracle}
 
 There are \(N=2^L\) candidate routes and, writing \(k\) for
 the number of marked routes, \(q_L=k/N\). Grover's algorithm
@@ -314,7 +314,7 @@ t=O(p^{1/4+o(1)}),
 This is the quantum upper bound, including the
 \(L=\Theta(\log p)\) cost of each marking operation.
 
-\subsection{Classical comparison}
+\subsection*{Classical comparison}
 
 Independent random route evaluations succeed with probability
 \(q_L\). The expected number of evaluations before the first
@@ -331,7 +331,7 @@ complete-route evaluations, or
 one-step calls. Grover's algorithm gives a quadratic
 improvement in the inverse success probability.
 
-\subsection{Lower bound in the black-box model}
+\subsection*{Lower bound in the black-box model}
 
 To state a rigorous lower bound, consider the
 \textbf{Unstructured Quantum Search Model}. Its input is an
@@ -399,7 +399,7 @@ black-box lower bound here is not a lower bound for every algorithm using the
 explicit arithmetic structure.\par
 }
 
-\subsection{Experimental exponent fitting}
+\subsection*{Experimental exponent fitting}
 
 For each tested prime \(p\), let \(M_p\) be the number of
 random routes sampled and \(S_p\) the number ending in
@@ -481,7 +481,7 @@ $\sin^2((2t+1)\theta)$ and classical random routes with the same number of queri
 \end{figure}
 \normalsize
 
-\section{Part III: Reversible Isogeny Arithmetic and Resource Estimate}
+\section*{Part III: Reversible Isogeny Arithmetic and Resource Estimate}
 \footnotesize
 
 \textbf{Field registers.} Put $n=\lceil\log_2p\rceil$. Encode $z=a+bi\in\mathbb F_{p^2}$ by two $n$-bit residues $(a,b)$, with $i^2=-1$. Thus one curve parameter takes $2n$ qubits. Addition is componentwise modulo $p$, and
@@ -595,7 +595,7 @@ Clock-Tower test (submitted) & 192 & 37{,}794 & -- & -- & 63{,}148 \\
 \label{fig:p3}
 \end{figure}
 
-\section{Part IV: Randomly Relabelled (Djinn) Oracle Model}
+\section*{Part IV: Randomly Relabelled (Djinn) Oracle Model}
 \footnotesize
 
 Let $V$ be the graph's vertex set, $|V|=N$, and let $\pi:V\to[N]$ be a uniformly random hidden bijection. A vertex name alone is not in general a sufficient routing state: the two legal forward roads depend on the road used to enter the current vertex. Let $e=(u,v)$ denote the directed arrival edge (or use an incoming-port label if parallel edges are present). If the two non-backtracking successors of $e$ are $e_b=(v,w_b)$, define the relabelled successor by
@@ -634,7 +634,7 @@ not automatically $\tau_{\rm CT}\tau_{\rm ANC}$. No independence assumption is j
 \begin{thebibliography}{17}\footnotesize\setlength{\itemsep}{0pt}
 \bibitem{zalka} C. Zalka, ``Grover's quantum searching algorithm is optimal,'' \emph{Phys. Rev. A} 60 (1999), 2746--2751.
 \bibitem{mnrs} F. Magniez, A. Nayak, J. Roland, and M. Santha, ``Search via quantum walk,'' \emph{SIAM J. Comput.} 40(1) (2011), 142--164.
-\bibitem{bjs} J.-F. Biasse, D. Jao, and A. Sankar, ``A quantum algorithm for computing isogenies between supersingular elliptic curves,'' in \emph{INDOCRYPT 2014}; related context, but not the assignment's labelled $2$-isogeny algorithm.
+\bibitem{dg} C. Delfs and S. D. Galbraith, ``Computing isogenies between supersingular elliptic curves over $\mathbb F_p$,'' \emph{Des. Codes Cryptogr.} 78(2) (2016), 425--440, Section 2 (number of supersingular $j\in\mathbb F_p$).
 \bibitem{bbbv} C. H. Bennett, E. Bernstein, G. Brassard, and U. Vazirani, ``Strengths and weaknesses of quantum computing,'' \emph{SIAM J. Comput.} 26(5) (1997), 1510--1523.
 \bibitem{dewolf} R. de Wolf, \emph{Quantum Computing: Lecture Notes}, arXiv:1907.09415, version 6 (27 August 2026). See the chapters on Grover search, quantum walks, and query complexity. \url{https://arxiv.org/abs/1907.09415}.
 \bibitem{mit} A. V. Sutherland, \emph{18.783 Elliptic Curves}, MIT OpenCourseWare, Fall 2025. In particular, Lectures 4--6, 12--13, and 16--17 cover isogenies, kernels, torsion, endomorphism algebras, supersingular curves, and complex multiplication. \url{https://ocw.mit.edu/courses/18-783-elliptic-curves-fall-2025/pages/lecture-notes-and-worksheets/}.
