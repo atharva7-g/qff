@@ -1,6 +1,7 @@
 \documentclass[aspectratio=169,10pt]{beamer}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{tikz}
 \usepackage{quantikz}
 \usepackage{pgfplots}
@@ -35,6 +36,8 @@
   arr/.style={-{Stealth[length=4pt]}, cgray, thick}}
 \newcommand{\key}{\operatorname{key}}
 \newcommand{\can}{\operatorname{can}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\pdfstringdefDisableCommands{\def\translate#1{#1}}
 
 \title{Isogenies on Oasis}
 \subtitle{Qiskit Fall Fest 2026, Track 1}
@@ -938,8 +941,8 @@ The names are random, so the volunteer is close to a black box. The $\Omega(p^{1
 \begin{column}{0.42\textwidth}
 \begin{block}{Reproduce}
 \scriptsize
-\texttt{uv run oasis --part 1 --p 1019 \textbackslash}\\
-\texttt{\ \ --A0 "977 + 297i" --L 12 \textbackslash}\\
+\texttt{uv run oasis --part 1 --p 1019 \char`\\}\\
+\texttt{\ \ --A0 "977 + 297i" --L 12 \char`\\}\\
 \texttt{\ \ --jstar "797 + 921i"}\\
 \texttt{uv run oasis --part 2}\\
 \texttt{uv run oasis --part 3}\\[3pt]
@@ -988,7 +991,7 @@ Decision problem: given $p$ and $A_0$, is there a route of length $L=O(\log p)$ 
 
 \begin{frame}{A4. Known algorithms that use the arithmetic}
 \small
-\begin{tabular}{p{3.0cm}p{3.0cm}p{1.7cm}p{4.3cm}}
+\begin{tabular}{L{3.0cm}L{3.0cm}L{1.7cm}L{4.3cm}}
 \toprule
 algorithm & solves & cost & why not here\\
 \midrule
