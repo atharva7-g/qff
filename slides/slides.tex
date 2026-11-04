@@ -106,22 +106,22 @@
 
 % =========================================================================
 \section{Part I}
-\begin{frame}[fragile]{Part I: the circuit}
+\begin{frame}{Part I: the circuit}
 \centering
-\begin{quantikz}[row sep={0.62cm,between origins}, column sep=0.32cm, font=\scriptsize]
-\lstick{route $\ket{0}^{\otimes 12}$} & \qwbundle{12} & \gate{H^{\otimes12}} & \gate[3]{W}\gategroup[3,steps=4,style={dashed, rounded corners, draw=cblue, inner xsep=2pt}, label style={label position=above, font=\scriptsize\color{cblue}}]{Grover iteration, repeated $r$ times} & & \gate[3]{W^\dagger} & \gate{D} & \meter{} \\
-\lstick{merge $\ket{0}^{\otimes 2}$} & \qwbundle{2} & & & & & & \\
-\lstick{spot $\ket{\mathrm{code}(A_0)}$} & \qwbundle{8} & & & \gate{(-1)^{[A=\mathrm{ANC}]}} & & &
+\begin{quantikz}[ampersand replacement=\&, row sep={0.62cm,between origins}, column sep=0.32cm, font=\scriptsize]
+\lstick{route $\ket{0}^{\otimes 12}$} \& \qwbundle{12} \& \gate{H^{\otimes12}} \& \gate[3]{W}\gategroup[3,steps=4,style={dashed, rounded corners, draw=cblue}]{Grover iteration, repeated $r$ times} \& \& \gate[3]{W^\dagger} \& \gate{D} \& \meter{} \\
+\lstick{merge $\ket{0}^{\otimes 2}$} \& \qwbundle{2} \& \& \& \& \& \& \\
+\lstick{spot $\ket{\mathrm{code}(A_0)}$} \& \qwbundle{8} \& \& \& \gate{(-1)^{[A=\mathrm{ANC}]}} \& \& \&
 \end{quantikz}
 
 \vspace{0.3em}
 \begin{columns}[T]
 \begin{column}{0.36\textwidth}
 \centering
-\begin{quantikz}[row sep={0.55cm,between origins}, column sep=0.3cm, font=\scriptsize]
-\lstick{$b_t$} & \gate[3]{\mathrm{Step}} & \\
-\lstick{merge} & & \\
-\lstick{spot} & &
+\begin{quantikz}[ampersand replacement=\&, row sep={0.55cm,between origins}, column sep=0.3cm, font=\scriptsize]
+\lstick{$b_t$} \& \gate[3]{\mathrm{Step}} \& \\
+\lstick{merge} \& \& \\
+\lstick{spot} \& \&
 \end{quantikz}\\[2pt]
 {\scriptsize $W=\mathrm{Step}_{12}\cdots\mathrm{Step}_1$, step $t$ reads bit $b_t$}
 \end{column}
@@ -535,13 +535,13 @@ $561+411i$ & 14 & $797+921i$\\
 \end{frame}
 
 % =========================================================================
-\begin{frame}[fragile]{Part II: the upper bound}
+\begin{frame}{Part II: the upper bound}
 \centering
-\begin{quantikz}[row sep={0.62cm,between origins}, column sep=0.32cm, font=\scriptsize]
-\lstick{route $x$} & \qwbundle{L} & \gate{H^{\otimes L}} & \gate[3]{W}\gategroup[4,steps=4,style={dashed, rounded corners, draw=cblue, inner xsep=2pt}, label style={label position=above, font=\scriptsize\color{cblue}}]{oracle $O_f$: $2L$ queries} & & & \gate[3]{W^\dagger} & \gate{D} & \meter{}\\
-\lstick{$A_0$} & \qwbundle{2n} & & & & & & & \\
-\lstick{$A_1\ldots A_L$} & \qwbundle{2nL} & & & \gate[2]{\text{tower test}} & & & & \\
-\lstick{flag $\ket{-}$} & & & & & & & &
+\begin{quantikz}[ampersand replacement=\&, row sep={0.62cm,between origins}, column sep=0.32cm, font=\scriptsize]
+\lstick{route $x$} \& \qwbundle{L} \& \gate{H^{\otimes L}} \& \gate[3]{W}\gategroup[4,steps=4,style={dashed, rounded corners, draw=cblue}]{oracle $O_f$: $2L$ queries} \& \& \& \gate[3]{W^\dagger} \& \gate{D} \& \meter{}\\
+\lstick{$A_0$} \& \qwbundle{2n} \& \& \& \& \& \& \& \\
+\lstick{$A_1\ldots A_L$} \& \qwbundle{2nL} \& \& \& \gate[2]{\text{tower test}} \& \& \& \& \\
+\lstick{flag $\ket{-}$} \& \& \& \& \& \& \& \&
 \end{quantikz}
 
 \vspace{0.4em}
