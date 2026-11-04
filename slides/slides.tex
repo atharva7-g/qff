@@ -114,12 +114,12 @@
 
 % =========================================================================
 \begin{frame}{The four parts}
-\small
-\begin{description}[Part III]\setlength{\itemsep}{4pt}
-\item[Part I] \textbf{Every password.} On the small campus ($p=1019$, $L=12$), list every route from $A_0$ to ANC with a quantum procedure, give the confidence that the list is complete, and count the queries.
-\item[Part II] \textbf{Reach the Clock Tower.} For a general prime $p$, find a route of length $L=O(\log p)$ from $A_0$ that ends on the Clock Tower. Give the quantum cost as a function of $p$ (an upper and a lower bound), compare it with classical search, and check it on data.
-\item[Part III] \textbf{The step from arithmetic.} Build the one-step circuit $\ket{A,b}\ket0\mapsto\ket{A,b}\ket{T_b(A)}$ from field arithmetic alone, without the survey. Check it on every input at $p=1019$, and count its cost at $p\approx2^{256}$.
-\item[Part IV] \textbf{Hidden names.} The spot names are replaced by random labels (the Djinn model). Say which methods still work, which stop working, and what lower bound holds.
+\footnotesize
+\begin{description}[Part III]\setlength{\itemsep}{3pt}
+\item[Part I] \textbf{The password.} On the small campus ($p=1019$, $L=12$), find every route from $A_0$ to ANC with a quantum procedure, and give the confidence that the list is complete. Count the queries, and compare them with classical search and the best possible quantum search, in terms of $N=2^L$ and the number of routes $k$.
+\item[Part II] \textbf{The phone on the Clock Tower.} Give the quantum cost, as a power of $p$, of finding a route of length $\Theta(\log p)$ that ends on the Clock Tower. Prove the upper bound, naming the theorems used. Prove a matching lower bound in a stated model, and explain why none can be proved for the real arithmetic. Measure how often routes end there as $p$ grows and fit the exponent. Run Grover on a campus where at most 1 in 32 routes succeeds, against theory and classical walking.
+\item[Part III] \textbf{The Oasis map.} For $p=1019$, build one step as a reversible circuit from arithmetic in $\mathbb F$ alone, with no table of roads: square root, key comparison, sign choice, and every ancilla cleaned. Check it on every spot and both bits. Give its cost at $p\approx2^{256}$, with the Clock-Tower test and the Part II search.
+\item[Part IV] \textbf{The Djinns.} The signboards are shuffled by a secret random permutation (the Djinn model). Say what still works, what stops working and why, which classical methods survive, and whether the Part II lower bound still holds.
 \end{description}
 \end{frame}
 
