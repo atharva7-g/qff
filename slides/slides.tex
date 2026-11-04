@@ -46,6 +46,7 @@
 \title{Isogenies on Oasis}
 \subtitle{Qiskit Fall Fest 2026, Track 1}
 \author{Three Qiskiteers}
+\institute{\href{https://github.com/atharva7-g/qff}{\texttt{github.com/atharva7-g/qff}}}
 \date{November 2026}
 
 \begin{document}
@@ -1004,6 +1005,7 @@ The names are random, so the volunteer is close to a black box. The $\Omega(p^{1
 \begin{column}{0.42\textwidth}
 \begin{block}{Reproduce}
 \scriptsize
+Code: \href{https://github.com/atharva7-g/qff}{\texttt{github.com/atharva7-g/qff}}\\[3pt]
 \texttt{uv run oasis --part 1 --p 1019 \char`\\}\\
 \texttt{\ \ --A0 "977 + 297i" --L 12 \char`\\}\\
 \texttt{\ \ --jstar "797 + 921i"}\\
@@ -1013,6 +1015,44 @@ Results: \texttt{results/}
 \end{block}
 \end{column}
 \end{columns}
+\end{frame}
+
+% =========================================================================
+\begin{frame}{References (1/2)}
+\scriptsize
+\begin{itemize}\setlength{\itemsep}{1pt}
+\item L. K. Grover, \emph{A fast quantum mechanical algorithm for database search}, STOC 1996.
+\item C. H. Bennett, E. Bernstein, G. Brassard, U. Vazirani, \emph{Strengths and weaknesses of quantum computing}, SIAM J. Comput. 26 (1997).
+\item C. Zalka, \emph{Grover's quantum searching algorithm is optimal}, Phys. Rev. A 60 (1999).
+\item M. Boyer, G. Brassard, P. H{\o}yer, A. Tapp, \emph{Tight bounds on quantum searching}, Fortschr. Phys. 46 (1998).
+\item G. Brassard, P. H{\o}yer, A. Tapp, \emph{Quantum counting}, ICALP 1998.
+\item J. van Apeldoorn, S. Gribling, H. Nieuwboer, \emph{Basic quantum subroutines: finding multiple marked elements and summing numbers}, Quantum 8 (2024).
+\item Y. Suzuki et al., \emph{Amplitude estimation without phase estimation}, Quantum Inf. Process. 19 (2020).
+\item D. Grinko, J. Gacon, C. Zoufal, S. Woerner, \emph{Iterative quantum amplitude estimation}, npj Quantum Inf. 7 (2021).
+\item C. J. Clopper, E. S. Pearson, \emph{The use of confidence or fiducial limits illustrated in the case of the binomial}, Biometrika 26 (1934).
+\item A. De Vos, Y. Van Rentergem, \emph{Young subgroups for reversible computers}, Adv. Math. Commun. 2 (2008).
+\item M. Deuring, \emph{Die Typen der Multiplikatorenringe elliptischer Funktionenk\"orper}, Abh. Math. Sem. Hamburg 14 (1941).
+\item C. L. Siegel, \emph{\"Uber die Classenzahl quadratischer Zahlk\"orper}, Acta Arith. 1 (1935).
+\item A. K. Pizer, \emph{Ramanujan graphs and Hecke operators}, Bull. AMS 23 (1990).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{References (2/2)}
+\scriptsize
+\begin{itemize}\setlength{\itemsep}{1pt}
+\item C. Delfs, S. D. Galbraith, \emph{Computing isogenies between supersingular elliptic curves over $\mathbb F_p$}, Des. Codes Cryptogr. 78 (2016).
+\item E. Lubetzky, Y. Peres, \emph{Cutoff on all Ramanujan graphs}, GAFA 26 (2016).
+\item C. H. Bennett, \emph{Logical reversibility of computation}, IBM J. Res. Dev. 17 (1973).
+\item C. H. Bennett, \emph{Time/space trade-offs for reversible computation}, SIAM J. Comput. 18 (1989).
+\item S. A. Cuccaro, T. G. Draper, S. A. Kutin, D. P. Moulton, \emph{A new quantum ripple-carry addition circuit}, arXiv:quant-ph/0410184 (2004).
+\item A. Karatsuba, Yu. Ofman, \emph{Multiplication of multidigit numbers on automata}, Soviet Physics Doklady 7 (1963).
+\item G. Adj, F. Rodr\'iguez-Henr\'iquez, \emph{Square root computation over even extension fields}, IEEE Trans. Computers 63 (2014).
+\item F. Magniez, A. Nayak, J. Roland, M. Santha, \emph{Search via quantum walk}, SIAM J. Comput. 40 (2011).
+\item J.-F. Biasse, D. Jao, A. Sankar, \emph{A quantum algorithm for computing isogenies between supersingular elliptic curves}, INDOCRYPT 2014.
+\item B. Wesolowski, \emph{The supersingular isogeny path and endomorphism ring problems are equivalent}, arXiv:2111.01481 (2021).
+\item A. Page, B. Wesolowski, \emph{The supersingular Endomorphism Ring and One Endomorphism problems are equivalent}, arXiv:2309.10432 (2023).
+\item J. L. Delgado, \emph{The Supersingular Isogeny Problem in Time and Memory $p^{1/3+o(1)}$, Unconditionally}, arXiv:2609.22018 (2026).
+\end{itemize}
 \end{frame}
 
 % =========================================================================
@@ -1149,44 +1189,6 @@ search: Toffoli / depth & $2^{102.9}$ / $2^{104.4}$\\
 \item A path of pairs through the inputs gives $\theta(x)=\theta(y)$ for all of them: the two circuits are equal up to one global phase.
 \item With equal amplitudes ($w=\pi/4$), Aer's matrix-product-state simulator lost the relative phase for some values of $\phi$, also for a circuit followed by its own inverse. Equal amplitudes give two equal Schmidt coefficients (the singular values across a cut of the state), so the simulator's singular value decomposition has no unique answer.
 \item With $w=0.55$ every case passes. A deliberate error ($Z$ on $b$) is found on every pair with different $b$, and only there.
-\end{itemize}
-\end{frame}
-
-% =========================================================================
-\begin{frame}{References (1/2)}
-\scriptsize
-\begin{itemize}\setlength{\itemsep}{1pt}
-\item L. K. Grover, \emph{A fast quantum mechanical algorithm for database search}, STOC 1996.
-\item C. H. Bennett, E. Bernstein, G. Brassard, U. Vazirani, \emph{Strengths and weaknesses of quantum computing}, SIAM J. Comput. 26 (1997).
-\item C. Zalka, \emph{Grover's quantum searching algorithm is optimal}, Phys. Rev. A 60 (1999).
-\item M. Boyer, G. Brassard, P. H{\o}yer, A. Tapp, \emph{Tight bounds on quantum searching}, Fortschr. Phys. 46 (1998).
-\item G. Brassard, P. H{\o}yer, A. Tapp, \emph{Quantum counting}, ICALP 1998.
-\item J. van Apeldoorn, S. Gribling, H. Nieuwboer, \emph{Basic quantum subroutines: finding multiple marked elements and summing numbers}, Quantum 8 (2024).
-\item Y. Suzuki et al., \emph{Amplitude estimation without phase estimation}, Quantum Inf. Process. 19 (2020).
-\item D. Grinko, J. Gacon, C. Zoufal, S. Woerner, \emph{Iterative quantum amplitude estimation}, npj Quantum Inf. 7 (2021).
-\item C. J. Clopper, E. S. Pearson, \emph{The use of confidence or fiducial limits illustrated in the case of the binomial}, Biometrika 26 (1934).
-\item A. De Vos, Y. Van Rentergem, \emph{Young subgroups for reversible computers}, Adv. Math. Commun. 2 (2008).
-\item M. Deuring, \emph{Die Typen der Multiplikatorenringe elliptischer Funktionenk\"orper}, Abh. Math. Sem. Hamburg 14 (1941).
-\item C. L. Siegel, \emph{\"Uber die Classenzahl quadratischer Zahlk\"orper}, Acta Arith. 1 (1935).
-\item A. K. Pizer, \emph{Ramanujan graphs and Hecke operators}, Bull. AMS 23 (1990).
-\end{itemize}
-\end{frame}
-
-\begin{frame}{References (2/2)}
-\scriptsize
-\begin{itemize}\setlength{\itemsep}{1pt}
-\item C. Delfs, S. D. Galbraith, \emph{Computing isogenies between supersingular elliptic curves over $\mathbb F_p$}, Des. Codes Cryptogr. 78 (2016).
-\item E. Lubetzky, Y. Peres, \emph{Cutoff on all Ramanujan graphs}, GAFA 26 (2016).
-\item C. H. Bennett, \emph{Logical reversibility of computation}, IBM J. Res. Dev. 17 (1973).
-\item C. H. Bennett, \emph{Time/space trade-offs for reversible computation}, SIAM J. Comput. 18 (1989).
-\item S. A. Cuccaro, T. G. Draper, S. A. Kutin, D. P. Moulton, \emph{A new quantum ripple-carry addition circuit}, arXiv:quant-ph/0410184 (2004).
-\item A. Karatsuba, Yu. Ofman, \emph{Multiplication of multidigit numbers on automata}, Soviet Physics Doklady 7 (1963).
-\item G. Adj, F. Rodr\'iguez-Henr\'iquez, \emph{Square root computation over even extension fields}, IEEE Trans. Computers 63 (2014).
-\item F. Magniez, A. Nayak, J. Roland, M. Santha, \emph{Search via quantum walk}, SIAM J. Comput. 40 (2011).
-\item J.-F. Biasse, D. Jao, A. Sankar, \emph{A quantum algorithm for computing isogenies between supersingular elliptic curves}, INDOCRYPT 2014.
-\item B. Wesolowski, \emph{The supersingular isogeny path and endomorphism ring problems are equivalent}, arXiv:2111.01481 (2021).
-\item A. Page, B. Wesolowski, \emph{The supersingular Endomorphism Ring and One Endomorphism problems are equivalent}, arXiv:2309.10432 (2023).
-\item J. L. Delgado, \emph{The Supersingular Isogeny Problem in Time and Memory $p^{1/3+o(1)}$, Unconditionally}, arXiv:2609.22018 (2026).
 \end{itemize}
 \end{frame}
 
