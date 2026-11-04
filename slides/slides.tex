@@ -38,6 +38,10 @@
 \newcommand{\can}{\operatorname{can}}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 \pdfstringdefDisableCommands{\def\translate#1{#1}}
+\newcommand{\slideref}[1]{\begin{tikzpicture}[remember picture,overlay]
+\node[anchor=south west, text width=0.9\paperwidth, font=\fontsize{5}{6}\selectfont, text=cgray, align=left, inner sep=0pt]
+  at ([xshift=0.35cm,yshift=0.3cm]current page.south west) {#1};
+\end{tikzpicture}}
 
 \title{Isogenies on Oasis}
 \subtitle{Qiskit Fall Fest 2026, Track 1}
@@ -81,6 +85,45 @@
 \end{frame}
 
 % =========================================================================
+\begin{frame}{Terms}
+\begin{columns}[T]
+\begin{column}{0.5\textwidth}
+\begin{block}{The campus}
+\begin{itemize}\small
+\item \textbf{Spot}: a curve $E_A$, a vertex of the graph.
+\item \textbf{Road}: a 2-isogeny, an edge. Each spot has 3 roads. A route never goes back along the road it arrived by, so each step has 2 choices.
+\item \textbf{Route}, \textbf{password}: the bits $x=b_1\cdots b_L$; bit $b_t$ picks the road at step $t$.
+\item \textbf{Maths department}: the start spot $A_0$.
+\item \textbf{ANC}: the target of Part I, every spot with $j(E_A)=j^*$.
+\item \textbf{Clock Tower}: the target of Part II, every spot with $j(E_A)\in\mathbb F_p$.
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.46\textwidth}
+\begin{block}{The method}
+\begin{itemize}\small
+\item \textbf{Survey}: a classical map of the campus, built from $p$ alone by walking each road once. Part I builds its circuit from it.
+\item \textbf{Query}: one use of the one-step circuit.
+\item \textbf{$\{cx,rz,sx,x\}$}: the IBM basis gate set we transpile to.
+\item \textbf{Djinn}, \textbf{volunteer} (Part IV): the spot names are hidden behind random labels. The Djinn returns the label at the end of a road; the volunteer reports whether a labelled spot is on the Clock Tower or at ANC.
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+% =========================================================================
+\begin{frame}{The four parts}
+\small
+\begin{description}[Part III]\setlength{\itemsep}{4pt}
+\item[Part I] \textbf{Every password.} On the small campus ($p=1019$, $L=12$), list every route from $A_0$ to ANC with a quantum procedure, give the confidence that the list is complete, and count the queries.
+\item[Part II] \textbf{Reach the Clock Tower.} For a general prime $p$, find a route of length $L=O(\log p)$ from $A_0$ that ends on the Clock Tower. Give the quantum cost as a function of $p$ (an upper and a lower bound), compare it with classical search, and check it on data.
+\item[Part III] \textbf{The step from arithmetic.} Build the one-step circuit $\ket{A,b}\ket0\mapsto\ket{A,b}\ket{T_b(A)}$ from field arithmetic alone, without the survey. Check it on every input at $p=1019$, and count its cost at $p\approx2^{256}$.
+\item[Part IV] \textbf{Hidden names.} The spot names are replaced by random labels (the Djinn model). Say which methods still work, which stop working, and what lower bound holds.
+\end{description}
+\end{frame}
+
+% =========================================================================
 \begin{frame}{Constraints}
 \begin{columns}[T]
 \begin{column}{0.5\textwidth}
@@ -89,8 +132,8 @@
 \item The survey walks each road once (at most 2 moves per spot). It does not use $A_0$, $L$ or $j^*$.
 \item After the survey: no path counting, no search backwards from ANC, no meet-in-the-middle, no route lists.
 \item The only classical work: walk one measured route once, to check it.
-\item The test ``are we at ANC?'' reads the spot inside the circuit. It is not built from $H$.
-\item If no route gets to ANC, the code says so.
+\item The ANC test marks the codes of the ANC spots with a lookup on the spot register, inside the circuit. It does not evaluate $H$.
+\item If no route reaches ANC, the program reports it.
 \end{itemize}
 \end{block}
 \end{column}
@@ -129,14 +172,16 @@
 {\scriptsize $W=\mathrm{Step}_{12}\cdots\mathrm{Step}_1$, step $t$ reads bit $b_t$}
 \end{column}
 \begin{column}{0.6\textwidth}
-\begin{itemize}\small
+\begin{itemize}\footnotesize
 \item Survey: 255 spots, 510 roads. Each spot gets an 8-bit code.
-\item Two merge qubits make the step one-to-one, so it is a permutation. It uses 17 single-target gates (De Vos--Van Rentergem).
-\item Oracle $=W$, phase on the ANC codes, $W^\dagger$: 24 queries.
+\item Two roads end at the same spot ($A=6$), so the step alone is not one-to-one. Two merge qubits record which road arrived; the step is then a permutation of basis states.
+\item A single-target gate flips one bit, controlled by the other bits. Every permutation of $n$ bits is a product of at most $2n-1$ of them (De Vos and Van Rentergem, 2008). Our step uses 17.
+\item Oracle: $W$, phase $-1$ on the ANC codes, $W^\dagger$; 24 queries. $D=2\ket{s}\!\bra{s}-I$ is the Grover diffusion, $\ket s$ the uniform superposition.
 \item 22 qubits. In $\{cx,rz,sx,x\}$: one step 13{,}395 CX, depth 42{,}173.
 \end{itemize}
 \end{column}
 \end{columns}
+\slideref{L. K. Grover, \emph{A fast quantum mechanical algorithm for database search}, STOC 1996. \\ A. De Vos, Y. Van Rentergem, \emph{Young subgroups for reversible computers}, Adv. Math. Commun. 2 (2008).}
 \end{frame}
 
 % =========================================================================
@@ -159,25 +204,27 @@
 \end{tikzpicture}
 \end{column}
 \begin{column}{0.46\textwidth}
-\begin{itemize}\small
-\item \textbf{IAE} (Iterative Amplitude Estimation): it estimates $a=k/N$ from circuits $Q^m A\ket0$ with Grover powers $Q^m$. It needs no QFT. Each round makes the confidence interval smaller (Appendix A1).
-\item We stop when the interval for $k=aN$ holds one integer.
-\item Result: $k=37$ at confidence $\ge0.99$.
-\item $k=0$ gives an interval at $0$. The code then reports ``no route''.
+\begin{itemize}\footnotesize
+\item \textbf{IAE} (Iterative Amplitude Estimation): it estimates $a=k/N$ from circuits $Q^m A\ket0$ with Grover powers $Q^m$. Each round makes the confidence interval smaller (Appendix A1).
+\item We stop when the interval for $k=aN$ holds one integer. Result: $k=37$ at confidence $\ge0.99$.
+\item $k=0$ gives an interval at $0$, and the program reports that no route reaches ANC.
+\item \textbf{Why IAE.} We first tried maximum-likelihood amplitude estimation. With few shots its likelihood had a second peak at $k\pm1$ ($k=5$ against $6$ at $N=256$). IAE keeps $(2m+1)\theta_a$ inside one half-period, so this cannot happen. Counting by phase estimation needs a quantum Fourier transform and an extra register; IAE needs neither.
 \end{itemize}
 \end{column}
 \end{columns}
+\slideref{D. Grinko, J. Gacon, C. Zoufal, S. Woerner, \emph{Iterative quantum amplitude estimation}, npj Quantum Inf. 7 (2021). \\ Y. Suzuki et al., \emph{Amplitude estimation without phase estimation}, Quantum Inf. Process. 19 (2020). \\ G. Brassard, P. H{\o}yer, A. Tapp, \emph{Quantum counting}, ICALP 1998.}
 \end{frame}
 
 % =========================================================================
 \begin{frame}{Part I: finding every route}
 \begin{columns}[c]
 \begin{column}{0.48\textwidth}
-\begin{itemize}\small
-\item Grover with $r=8$ iterations per run, 137 runs. Each measured route is checked once by one classical walk (1 run rejected).
+\begin{itemize}\scriptsize
+\item Grover with $r=8$ iterations per run, 137 runs. Each measured route is checked once by one classical walk.
+\item A run succeeds with probability just under 1, so it can return a route that misses ANC. The check caught 1 such run, and it was discarded.
 \item All 37 routes are found. They end at 3 spots:
 \end{itemize}
-\centering\small
+\centering\footnotesize
 \begin{tabular}{ccc}
 \toprule
 $A_{12}$ & routes & $j$ \\
@@ -188,9 +235,10 @@ $561+411i$ & 14 & $797+921i$\\
 \bottomrule
 \end{tabular}
 
-\vspace{0.4em}
-\begin{itemize}\small
-\item The 0.99-confidence count costs most of the queries. The scale is $\sqrt{Nk}$ for all routes.
+\vspace{0.1em}
+\begin{itemize}\scriptsize
+\item Chart: one-step calls. Grey: walk all $N$ routes classically ($NL$), and the best possible quantum search for all $k$ routes ($\sqrt{Nk}\cdot2L$). Blue: our run.
+\item Our search is within $2\times$ of the best possible. The count costs the most: at $N=4096$ the constants of IAE dominate (32 shots per round, the confidence terms). For large $N$ the scaling, $\sqrt{Nk}$ against $N$, decides.
 \end{itemize}
 \end{column}
 \begin{column}{0.5\textwidth}
@@ -209,6 +257,7 @@ $561+411i$ & 14 & $797+921i$\\
 \end{tikzpicture}
 \end{column}
 \end{columns}
+\slideref{J. van Apeldoorn, S. Gribling, H. Nieuwboer, \emph{Basic quantum subroutines: finding multiple marked elements and summing numbers}, Quantum 8 (2024).}
 \end{frame}
 
 % =========================================================================
@@ -493,15 +542,15 @@ $561+411i$ & 14 & $797+921i$\\
 \fill[caqua] (v22) circle (2.4pt) (v105) circle (2.4pt) (v250) circle (2.4pt);
 \fill[cblue] (v31) circle (2.4pt);
 \end{tikzpicture}\\
-{\scriptsize\color{cgray} $p=1019$: 255 spots.
+{\scriptsize\color{cgray} $p=1019$: 255 spots, one connected graph.
 \textcolor{corange}{$\bullet$} on the tower (75),
 \textcolor{caqua}{$\bullet$} ANC (3), \textcolor{cblue}{$\bullet$} $A_0$}
 \end{column}
 \begin{column}{0.48\textwidth}
 \begin{itemize}\small
-\item Top of the Clock Tower: $T_p=\{E: j(E)\in\mathbb F_p\}$.
-\item Deuring--Eichler: $|T_p|=2h(-p)$ or $h(-p)$, where $h$ is a class number.
-\item Siegel: $h(-p)=p^{1/2+o(1)}$. All spots: $|V_p|=p/12+O(1)$.
+\item Clock Tower: $T_p=\{E: j(E)\in\mathbb F_p\}$.
+\item Deuring--Eichler theorem (counts the supersingular curves defined over $\mathbb F_p$): $|T_p|=2h(-p)$ or $h(-p)$. Here $h(-p)$ is the class number of $\mathbb Q(\sqrt{-p})$.
+\item Siegel's theorem (growth of class numbers): $h(-p)=p^{1/2+o(1)}$. All spots: $|V_p|=p/12+O(1)$.
 \end{itemize}
 \[ \frac{|T_p|}{|V_p|}=p^{-1/2+o(1)} \]
 \begin{itemize}\small
@@ -509,15 +558,16 @@ $561+411i$ & 14 & $797+921i$\\
 \end{itemize}
 \end{column}
 \end{columns}
+\slideref{M. Deuring, \emph{Die Typen der Multiplikatorenringe elliptischer Funktionenk\"orper}, Abh. Math. Sem. Hamburg 14 (1941). \\ C. Delfs, S. D. Galbraith, \emph{Computing isogenies between supersingular elliptic curves over $\mathbb F_p$}, Des. Codes Cryptogr. 78 (2016). \\ C. L. Siegel, \emph{\"Uber die Classenzahl quadratischer Zahlk\"orper}, Acta Arith. 1 (1935).}
 \end{frame}
 
 % =========================================================================
 \begin{frame}{Part II: from spots to routes}
 \begin{columns}[c]
 \begin{column}{0.5\textwidth}
-\begin{itemize}\small
-\item A route is a walk without backtracking on a 3-regular Ramanujan graph (Pizer).
-\item Lubetzky--Peres: the end of the walk is close to uniform,
+\begin{itemize}\footnotesize
+\item The graph is connected (from any spot, the survey reaches all 255), 3-regular and Ramanujan: every nontrivial eigenvalue has $|\lambda|\le2\sqrt2$, the best possible expansion (Pizer, 1990). A route is a walk on it without backtracking.
+\item Lubetzky--Peres (how fast such walks mix on Ramanujan graphs): the end of the walk is close to uniform in total variation distance,
 \[ d_{\rm TV}\le O\big(\sqrt{p}\,2^{-L/2}L\big). \]
 \item With $L=\lceil3\log_2p\rceil$ this is $\widetilde O(p^{-1})$, much less than the target fraction. So
 \[ q_L=\Pr_x[f(x)=1]=p^{-1/2+o(1)}. \]
@@ -535,6 +585,7 @@ $561+411i$ & 14 & $797+921i$\\
 \end{tikzpicture}
 \end{column}
 \end{columns}
+\slideref{A. K. Pizer, \emph{Ramanujan graphs and Hecke operators}, Bull. AMS 23 (1990). \\ E. Lubetzky, Y. Peres, \emph{Cutoff on all Ramanujan graphs}, GAFA 26 (2016).}
 \end{frame}
 
 % =========================================================================
@@ -559,11 +610,12 @@ $P(t)=\sin^2((2t+1)\theta)$.
 \begin{column}{0.48\textwidth}
 \begin{itemize}\small
 \item $t\approx\frac{\pi}{4\sqrt{q_L}}=p^{1/4+o(1)}$ iterations, each $2L=O(\log p)$ queries.
-\item $q_L$ unknown: BBHT, at most $\tfrac94\sqrt{1/q_L}$ on average.
+\item $q_L$ unknown: BBHT (Boyer--Brassard--H{\o}yer--Tapp) runs Grover with random iteration counts; at most $\tfrac94\sqrt{1/q_L}$ iterations on average.
 \item Classical random routes: $1/q_L=p^{1/2+o(1)}$.
 \end{itemize}
 \end{column}
 \end{columns}
+\slideref{M. Boyer, G. Brassard, P. H{\o}yer, A. Tapp, \emph{Tight bounds on quantum searching}, Fortschr. Phys. 46 (1998).}
 \end{frame}
 
 % =========================================================================
@@ -575,7 +627,7 @@ $P(t)=\sin^2((2t+1)\theta)$.
 Input: an unknown $f:\{0,1\}^L\to\{0,1\}$ with $k$ marked inputs. The only access is the oracle $O_f\ket{x,z}=\ket{x,z\oplus f(x)}$.
 
 \medskip
-BBBV, Zalka: every quantum algorithm with constant success needs
+BBBV (Bennett--Bernstein--Brassard--Vazirani) and Zalka: every quantum algorithm with constant success needs
 \[ \Omega\big(\sqrt{N/k}\big)=\Omega\big(q_L^{-1/2}\big)=\Omega\big(p^{1/4-o(1)}\big) \]
 oracle queries. Grover meets this bound.
 \end{block}
@@ -585,12 +637,13 @@ oracle queries. Grover meets this bound.
 \small
 \begin{itemize}
 \item The step is explicit field arithmetic. An algorithm can use this structure, so the black-box bound does not apply.
-\item ``A route to the tower exists'' is in NP (Appendix A3). A proof that no polynomial-time quantum algorithm exists would show NP $\not\subseteq$ BQP, and so P $\neq$ NP.
+\item Deciding whether a route to the tower exists is in NP (Appendix A3). BQP is the class of problems a quantum computer solves in polynomial time. A proof that no polynomial-time quantum algorithm exists would show NP $\not\subseteq$ BQP, and so P $\neq$ NP.
 \item No known algorithm beats $p^{1/4}$ under these rules (Appendix A4).
 \end{itemize}
 \end{block}
 \end{column}
 \end{columns}
+\slideref{C. H. Bennett, E. Bernstein, G. Brassard, U. Vazirani, \emph{Strengths and weaknesses of quantum computing}, SIAM J. Comput. 26 (1997). \\ C. Zalka, \emph{Grover's quantum searching algorithm is optimal}, Phys. Rev. A 60 (1999).}
 \end{frame}
 
 % =========================================================================
@@ -658,11 +711,12 @@ oracle queries. Grover meets this bound.
 \end{tikzpicture}
 \begin{itemize}\small
 \item Simulation $=$ theory to 4 decimals. At $t=4$: $0.981$, against $0.205$ classically.
-\item BBHT: on average 91 queries and 7.9 checks. Classical: 477 steps.
+\item BBHT: on average 91 queries and 7.9 classical route checks. Classical random routes: 477 steps.
 \item 25 qubits. One iteration in $\{cx,rz,sx,x\}$: $3.40\cdot10^6$ CX, depth $1.11\cdot10^7$.
 \end{itemize}
 \end{column}
 \end{columns}
+\slideref{M. Boyer, G. Brassard, P. H{\o}yer, A. Tapp, \emph{Tight bounds on quantum searching}, Fortschr. Phys. 46 (1998).}
 \end{frame}
 
 % =========================================================================
@@ -696,14 +750,15 @@ No inversion (Appendix A5).
 \end{block}
 \end{column}
 \begin{column}{0.48\textwidth}
-\begin{itemize}\small
-\item No branches: every ``if'' is a flag qubit and controlled gates.
+\begin{itemize}\footnotesize
+\item No branches: each condition is computed into a flag qubit, which controls the gates. CSWAP is a controlled swap.
 \item Any root $s$ works: the key sort fixes the order of $\rho_\pm$.
-\item $|A,b\rangle|0\rangle\mapsto|A,b\rangle|T_b(A)\rangle$, all work qubits back to 0 (Bennett).
-\item Clock-Tower test without division: $j\in\mathbb F_p\iff \overline N D=N\overline D$.
+\item $|A,b\rangle|0\rangle\mapsto|A,b\rangle|T_b(A)\rangle$. Bennett's method returns all work qubits to 0: compute, copy $A'$, run the computation backwards.
+\item Clock-Tower test without division: write $j=N/D$ and $\overline{a+bi}=a-bi$. Then $j\in\mathbb F_p\iff \overline N D=N\overline D$.
 \end{itemize}
 \end{column}
 \end{columns}
+\slideref{C. H. Bennett, \emph{Logical reversibility of computation}, IBM J. Res. Dev. 17 (1973).}
 \end{frame}
 
 % =========================================================================
@@ -716,7 +771,7 @@ No inversion (Appendix A5).
 \node[box, right=of add] (lt) {comparator\\{\tiny MAJ ladder, 20 Tof.}};
 \node[box, below=of add] (ma) {modular adder\\{\tiny $z\leftarrow z+a \bmod p$, 86 Tof.}};
 \node[box, right=of ma] (db) {doubling\\{\tiny $x\leftarrow2x$, 44 Tof.}};
-\node[box, below=of ma] (mac) {MAC\\{\tiny $z\leftarrow z+xy$, 1{,}852 Tof.}};
+\node[box, below=of ma] (mac) {MAC (multiply-add)\\{\tiny $z\leftarrow z+xy$, 1{,}852 Tof.}};
 \node[box, below=of mac] (m2) {$\mathbb F_{p^2}$ product\\{\tiny Karatsuba: 3 MACs}};
 \node[box, right=of m2] (pw) {power in $\mathbb F_p$\\{\tiny square and multiply}};
 \draw[arr] (add) -- (ma); \draw[arr] (lt) -- (ma);
@@ -726,15 +781,18 @@ No inversion (Appendix A5).
 {\scriptsize\color{cgray} Toffoli counts for $p=1019$, $n=10$ bits}
 \end{column}
 \begin{column}{0.43\textwidth}
-\begin{itemize}\small
+\begin{itemize}\footnotesize
 \item Gates: X, CX, Toffoli, CSWAP only.
+\item CDKM: the Cuccaro--Draper--Kutin--Moulton ripple-carry adder, built into Qiskit. The comparator keeps only its carry chain (MAJ gates).
 \item Modular adder: add, subtract $p$, add $p$ back if the sign bit is 1, then clear the flag with the comparator.
 \item Doubling is a relabelling of qubits plus one subtraction of $p$.
 \item MAC: for each bit $y_i$, add $y_i\cdot x$, then double $x$. This gives $n$ modular adders, so $O(n^2)$.
+\item Karatsuba: an $\mathbb F_{p^2}$ product from 3 products in $\mathbb F_p$ instead of 4.
 \item An exponentiation is $O(n)$ products, so one step is $O(n^3)$.
 \end{itemize}
 \end{column}
 \end{columns}
+\slideref{S. A. Cuccaro, T. G. Draper, S. A. Kutin, D. P. Moulton, \emph{A new quantum ripple-carry addition circuit}, arXiv:quant-ph/0410184 (2004). \\ A. Karatsuba, Yu. Ofman, \emph{Multiplication of multidigit numbers on automata}, Soviet Physics Doklady 7 (1963).}
 \end{frame}
 
 % =========================================================================
@@ -744,7 +802,7 @@ No inversion (Appendix A5).
 \begin{block}{Every input}
 \small
 \begin{itemize}
-\item Aer matrix-product-state simulator, 587 qubits.
+\item Qiskit Aer's matrix-product-state simulator, 587 qubits.
 \item Step: 510 inputs (255 spots, both bits). Output $=$ classical $T_b(A)$, inputs unchanged, every work qubit 0. \textbf{510/510.}
 \item Clock-Tower test: \textbf{255/255} spots.
 \item 32 inputs on random spots at $p=46351$: all correct.
@@ -759,7 +817,7 @@ X, CX, Toffoli and CSWAP send basis states to basis states, so the circuit $U$ i
 \end{block}
 \begin{block}{Phases}
 \small
-64 states $\cos w\ket x+e^{i\phi}\sin w\ket y$ go through the circuit and then the inverse of a reference circuit. All return to $\ket{0}$. A deliberate phase error is detected.
+64 states $\cos w\ket x+e^{i\phi}\sin w\ket y$ go through the circuit and then the inverse of a reference circuit (Appendix A7). All return to $\ket{0}$. A deliberate phase error is detected.
 \end{block}
 \end{column}
 \end{columns}
@@ -811,7 +869,7 @@ classical random routes & $2^{133.9}$ steps\\
 \begin{tikzpicture}
 \begin{axis}[width=\linewidth, height=5.0cm, xbar stacked, bar width=9pt,
   xmin=0, xmax=470, xlabel={Toffoli ($10^3$) for one step, $p=1019$}, title={Where the Toffolis go},
-  ytick={1,2,3,4}, yticklabels={submitted, Alg.~9 root, + schoolbook, + sub/add flag},
+  ytick={1,2,3,4}, yticklabels={submitted, power root, + 4 products, + sub/add flag},
   y tick label style={font=\tiny, align=right},
   ymin=0.4, ymax=4.6, legend columns=3,
   legend style={at={(0.5,-0.32)}, anchor=north}]
@@ -839,11 +897,12 @@ Each row changes one algorithm of the submitted circuit:
 change & Toffoli & factor\\
 \midrule
 submitted & 139{,}236 & 1.00\\
-root: Algorithm 9 ($\mathbb F_{p^2}$ powers) & 339{,}162 & 2.44\\
-\ + schoolbook $\mathbb F_{p^2}$ product & 380{,}506 & 2.73\\
+root by powers in $\mathbb F_{p^2}$ & 339{,}162 & 2.44\\
+\ + $\mathbb F_{p^2}$ product as 4 products & 380{,}506 & 2.73\\
 \ + flag by subtract and add back & 431{,}914 & 3.10\\
 \bottomrule
-\end{tabular}}
+\end{tabular}\\[1pt]
+Root by powers in $\mathbb F_{p^2}$: Algorithm 9 of Adj and Rodr\'iguez-Henr\'iquez (2014).}
 
 \smallskip
 \begin{itemize}\small
@@ -853,15 +912,16 @@ root: Algorithm 9 ($\mathbb F_{p^2}$ powers) & 339{,}162 & 2.44\\
 \end{itemize}
 \end{column}
 \end{columns}
+\slideref{G. Adj, F. Rodr\'iguez-Henr\'iquez, \emph{Square root computation over even extension fields}, IEEE Trans. Computers 63 (2014).}
 \end{frame}
 
 % =========================================================================
 \begin{frame}{Part III: trade-offs, qubits and depth}
 \begin{columns}[c]
 \begin{column}{0.5\textwidth}
-\begin{block}{Qubits: pebbling}
+\begin{block}{Qubits: which values to keep (pebbling)}
 \small
-Bennett keeps each intermediate value: about $1.5n$ registers of $n$ qubits per exponentiation, so qubits $\sim n^2$.
+Bennett's method keeps each intermediate value: about $1.5n$ registers of $n$ qubits per exponentiation, so qubits $\sim n^2$.
 
 \smallskip
 \begin{tabular}{lcc}
@@ -893,38 +953,41 @@ We keep Bennett: it gives the fewest gates.
 {\scriptsize With depth limit $2^m$: $S=(2^{104.4-m})^2$ machines; total $\times\sqrt S$.}
 \end{column}
 \end{columns}
+\slideref{C. H. Bennett, \emph{Logical reversibility of computation}, IBM J. Res. Dev. 17 (1973). \\ C. H. Bennett, \emph{Time/space trade-offs for reversible computation}, SIAM J. Comput. 18 (1989).}
 \end{frame}
 
 % =========================================================================
 \section{Part IV}
-\begin{frame}{Part IV: the Djinns}
+\begin{frame}{Part IV: hidden names (Djinns)}
+\footnotesize The spot names are replaced by random labels. The Djinn returns the label at the end of a road; the volunteer reports whether a labelled spot is on the Clock Tower or at ANC.\par
 \begin{columns}[T]
 \begin{column}{0.48\textwidth}
 \begin{block}{What still works}
-\small
+\footnotesize
 \begin{itemize}
 \item The graph is the same: degree, roads, cycles, expansion.
-\item Classical: random walks ($p^{1/2}$ tower tests), BFS/DFS with a table of names, cycle and collision search.
+\item Classical: random walks ($p^{1/2}$ tower tests), breadth- or depth-first search with a table of labels, cycle and collision search.
 \item Our Part I method: the survey asks the Djinn for every road ($O(N)$), then the step circuit is built from the survey.
-\item With a \emph{coherent} Djinn and volunteer: Grover and quantum walks still give $p^{1/4}$.
+\item If the Djinn and volunteer accept superpositions (coherent access), Grover and quantum walks still give $p^{1/4}$.
 \end{itemize}
 \end{block}
 \end{column}
 \begin{column}{0.48\textwidth}
 \begin{block}{What stops working}
-\small
+\footnotesize
 \begin{itemize}
-\item Arithmetic on $A$: the Part III step circuit, the $j$ test, Frobenius.
+\item Arithmetic on $A$: the Part III step circuit, the $j$ test, the Frobenius map $a+bi\mapsto a-bi$.
 \item Methods from number theory (class groups, endomorphism rings).
-\item A human Djinn or volunteer answers one question at a time. No superposition, so no Grover.
+\item A Djinn or volunteer that answers classically takes one question at a time. No superposition, so no Grover.
 \end{itemize}
 \end{block}
 \begin{block}{Lower bound}
-\small
+\footnotesize
 The names are random, so the volunteer is close to a black box. The $\Omega(p^{1/4})$ bound needs one more condition: the tower set must not be visible from the graph shape.
 \end{block}
 \end{column}
 \end{columns}
+\slideref{F. Magniez, A. Nayak, J. Roland, M. Santha, \emph{Search via quantum walk}, SIAM J. Comput. 40 (2011).}
 \end{frame}
 
 % =========================================================================
@@ -935,7 +998,7 @@ The names are random, so the volunteer is close to a black box. The $\Omega(p^{1
 \item \textbf{Part I:} all 37 passwords, $k$ counted at confidence $\ge0.99$, survey rules kept.
 \item \textbf{Part II:} $p^{1/4+o(1)}$ quantum against $p^{1/2+o(1)}$ classical. Black-box lower bound; a lower bound for the real arithmetic would prove P $\ne$ NP. Fitted exponent $0.523\pm0.040$; Grover demo $=$ theory.
 \item \textbf{Part III:} one step from arithmetic only, 510/510 correct. At $2^{256}$: $1.8\cdot10^9$ Toffolis per step, $2^{103}$ for the search.
-\item \textbf{Part IV:} the speed-up needs coherent access, not the names.
+\item \textbf{Part IV:} the speed-up needs oracles that accept superpositions, not the spot names.
 \end{itemize}
 \end{column}
 \begin{column}{0.42\textwidth}
@@ -958,11 +1021,12 @@ Results: \texttt{results/}
 \small
 \begin{itemize}
 \item Problem: $A\ket0=\sqrt{a}\ket{\text{good}}+\sqrt{1-a}\ket{\text{bad}}$. Estimate $a=\sin^2\theta_a$.
-\item Grover operator $Q=A S_0 A^\dagger S_{\rm good}$. Then $Q^mA\ket0$ is good with probability $\sin^2((2m+1)\theta_a)$.
-\item Each round picks the largest power $m$ that keeps $(2m+1)\theta_a$ inside one half-period of the current interval. It measures, and narrows the interval for $\theta_a$ (Clopper--Pearson).
+\item Grover operator $Q=A S_0 A^\dagger S_{\rm good}$, where $S_0$ and $S_{\rm good}$ flip the sign of $\ket0$ and of the good states. Then $Q^mA\ket0$ is good with probability $\sin^2((2m+1)\theta_a)$.
+\item Each round picks the largest power $m$ that keeps $(2m+1)\theta_a$ inside one half-period of the current interval. It measures, and narrows the interval for $\theta_a$ (Clopper--Pearson: an exact confidence interval for a binomial proportion).
 \item Cost: $O\!\left(\frac1\varepsilon\log\frac{2}{\alpha}\log\frac{\pi}{4\varepsilon}\right)$ queries for error $\varepsilon$ at confidence $1-\alpha$, with no QFT (Grinko, Gacon, Zoufal, Woerner 2021).
 \item Here: good $=$ spot register at an ANC code, $a=k/N$. We halve $\varepsilon$ until the interval for $k=aN$ holds one integer; $\alpha=0.01$.
 \end{itemize}
+\slideref{D. Grinko, J. Gacon, C. Zoufal, S. Woerner, \emph{Iterative quantum amplitude estimation}, npj Quantum Inf. 7 (2021). \\ C. J. Clopper, E. S. Pearson, \emph{The use of confidence or fiducial limits illustrated in the case of the binomial}, Biometrika 26 (1934).}
 \end{frame}
 
 \begin{frame}{A2. Theorems we use}
@@ -975,6 +1039,7 @@ Results: \texttt{results/}
 \item[BBBV, Zalka] Search for one of $k$ marked items among $N$ with a black-box oracle needs $\Omega(\sqrt{N/k})$ queries; Grover is optimal.
 \item[BBHT] With $k$ unknown and $\lambda=6/5$, the expected number of Grover iterations is at most $\tfrac94\sqrt{N/k}$.
 \end{description}
+\slideref{M. Deuring, \emph{Die Typen der Multiplikatorenringe elliptischer Funktionenk\"orper}, Abh. Math. Sem. Hamburg 14 (1941). \\ C. Delfs, S. D. Galbraith, \emph{Computing isogenies between supersingular elliptic curves over $\mathbb F_p$}, Des. Codes Cryptogr. 78 (2016). \\ C. L. Siegel, \emph{\"Uber die Classenzahl quadratischer Zahlk\"orper}, Acta Arith. 1 (1935). \\ A. K. Pizer, \emph{Ramanujan graphs and Hecke operators}, Bull. AMS 23 (1990). \\ E. Lubetzky, Y. Peres, \emph{Cutoff on all Ramanujan graphs}, GAFA 26 (2016). \\ C. H. Bennett, E. Bernstein, G. Brassard, U. Vazirani, \emph{Strengths and weaknesses of quantum computing}, SIAM J. Comput. 26 (1997). \\ C. Zalka, \emph{Grover's quantum searching algorithm is optimal}, Phys. Rev. A 60 (1999). \\ M. Boyer, G. Brassard, P. H{\o}yer, A. Tapp, \emph{Tight bounds on quantum searching}, Fortschr. Phys. 46 (1998).}
 \end{frame}
 
 \begin{frame}{A3. The Clock-Tower problem is in NP}
@@ -1004,6 +1069,10 @@ Wesolowski (2021) & path $\Leftrightarrow$ endomorphism ring & reduction & assum
 
 \medskip
 None of these gives less than $p^{1/4}$ for a route of length $\Theta(\log p)$ from $A_0$ under the rules.
+
+\smallskip
+{\footnotesize GRH: the generalized Riemann hypothesis. Endomorphism ring: the ring of isogenies from a curve to itself. Meet-in-the-middle: search from both ends and match.}
+\slideref{J.-F. Biasse, D. Jao, A. Sankar, \emph{A quantum algorithm for computing isogenies between supersingular elliptic curves}, INDOCRYPT 2014. \\ A. Page, B. Wesolowski, \emph{The supersingular Endomorphism Ring and One Endomorphism problems are equivalent}, arXiv:2309.10432 (2023). \\ J. L. Delgado, \emph{The Supersingular Isogeny Problem in Time and Memory $p^{1/3+o(1)}$, Unconditionally}, arXiv:2609.22018 (2026). \\ B. Wesolowski, \emph{The supersingular isogeny path and endomorphism ring problems are equivalent}, arXiv:2111.01481 (2021).}
 \end{frame}
 
 \begin{frame}{A5. Proof of the square root from the norm}
@@ -1078,8 +1147,46 @@ search: Toffoli / depth & $2^{102.9}$ / $2^{104.4}$\\
 \begin{itemize}
 \item The test prepares $\cos w\ket{0}\ket x+e^{i\phi}\sin w\ket1\ket y$, runs the new circuit, then the inverse of the reference circuit, then undoes the preparation. The result is $\ket0$ with probability $1-\sin^2(2w)\sin^2(\Delta\theta/2)$.
 \item A path of pairs through the inputs gives $\theta(x)=\theta(y)$ for all of them: the two circuits are equal up to one global phase.
-\item With equal amplitudes ($w=\pi/4$), Aer's matrix-product-state simulator lost the relative phase for some values of $\phi$, also for a circuit followed by its own inverse. Two equal Schmidt values make the SVD degenerate.
+\item With equal amplitudes ($w=\pi/4$), Aer's matrix-product-state simulator lost the relative phase for some values of $\phi$, also for a circuit followed by its own inverse. Equal amplitudes give two equal Schmidt coefficients (the singular values across a cut of the state), so the simulator's singular value decomposition has no unique answer.
 \item With $w=0.55$ every case passes. A deliberate error ($Z$ on $b$) is found on every pair with different $b$, and only there.
+\end{itemize}
+\end{frame}
+
+% =========================================================================
+\begin{frame}{References (1/2)}
+\scriptsize
+\begin{itemize}\setlength{\itemsep}{1pt}
+\item L. K. Grover, \emph{A fast quantum mechanical algorithm for database search}, STOC 1996.
+\item C. H. Bennett, E. Bernstein, G. Brassard, U. Vazirani, \emph{Strengths and weaknesses of quantum computing}, SIAM J. Comput. 26 (1997).
+\item C. Zalka, \emph{Grover's quantum searching algorithm is optimal}, Phys. Rev. A 60 (1999).
+\item M. Boyer, G. Brassard, P. H{\o}yer, A. Tapp, \emph{Tight bounds on quantum searching}, Fortschr. Phys. 46 (1998).
+\item G. Brassard, P. H{\o}yer, A. Tapp, \emph{Quantum counting}, ICALP 1998.
+\item J. van Apeldoorn, S. Gribling, H. Nieuwboer, \emph{Basic quantum subroutines: finding multiple marked elements and summing numbers}, Quantum 8 (2024).
+\item Y. Suzuki et al., \emph{Amplitude estimation without phase estimation}, Quantum Inf. Process. 19 (2020).
+\item D. Grinko, J. Gacon, C. Zoufal, S. Woerner, \emph{Iterative quantum amplitude estimation}, npj Quantum Inf. 7 (2021).
+\item C. J. Clopper, E. S. Pearson, \emph{The use of confidence or fiducial limits illustrated in the case of the binomial}, Biometrika 26 (1934).
+\item A. De Vos, Y. Van Rentergem, \emph{Young subgroups for reversible computers}, Adv. Math. Commun. 2 (2008).
+\item M. Deuring, \emph{Die Typen der Multiplikatorenringe elliptischer Funktionenk\"orper}, Abh. Math. Sem. Hamburg 14 (1941).
+\item C. L. Siegel, \emph{\"Uber die Classenzahl quadratischer Zahlk\"orper}, Acta Arith. 1 (1935).
+\item A. K. Pizer, \emph{Ramanujan graphs and Hecke operators}, Bull. AMS 23 (1990).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{References (2/2)}
+\scriptsize
+\begin{itemize}\setlength{\itemsep}{1pt}
+\item C. Delfs, S. D. Galbraith, \emph{Computing isogenies between supersingular elliptic curves over $\mathbb F_p$}, Des. Codes Cryptogr. 78 (2016).
+\item E. Lubetzky, Y. Peres, \emph{Cutoff on all Ramanujan graphs}, GAFA 26 (2016).
+\item C. H. Bennett, \emph{Logical reversibility of computation}, IBM J. Res. Dev. 17 (1973).
+\item C. H. Bennett, \emph{Time/space trade-offs for reversible computation}, SIAM J. Comput. 18 (1989).
+\item S. A. Cuccaro, T. G. Draper, S. A. Kutin, D. P. Moulton, \emph{A new quantum ripple-carry addition circuit}, arXiv:quant-ph/0410184 (2004).
+\item A. Karatsuba, Yu. Ofman, \emph{Multiplication of multidigit numbers on automata}, Soviet Physics Doklady 7 (1963).
+\item G. Adj, F. Rodr\'iguez-Henr\'iquez, \emph{Square root computation over even extension fields}, IEEE Trans. Computers 63 (2014).
+\item F. Magniez, A. Nayak, J. Roland, M. Santha, \emph{Search via quantum walk}, SIAM J. Comput. 40 (2011).
+\item J.-F. Biasse, D. Jao, A. Sankar, \emph{A quantum algorithm for computing isogenies between supersingular elliptic curves}, INDOCRYPT 2014.
+\item B. Wesolowski, \emph{The supersingular isogeny path and endomorphism ring problems are equivalent}, arXiv:2111.01481 (2021).
+\item A. Page, B. Wesolowski, \emph{The supersingular Endomorphism Ring and One Endomorphism problems are equivalent}, arXiv:2309.10432 (2023).
+\item J. L. Delgado, \emph{The Supersingular Isogeny Problem in Time and Memory $p^{1/3+o(1)}$, Unconditionally}, arXiv:2609.22018 (2026).
 \end{itemize}
 \end{frame}
 
