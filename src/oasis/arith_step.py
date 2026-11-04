@@ -28,9 +28,45 @@ Im(num conj(den)) = num_im den_re - num_re den_im = 0.  No inversion.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from qiskit import QuantumCircuit, QuantumRegister
 
 from .arith import ModP, load_const
+
+
+@dataclass(frozen=True)
+class Variant:
+    """Which improvements the circuit uses (all True = the default circuit).
+
+    cmp        clear the modadd flag and compare keys with the MAJ comparator
+    karatsuba  F_{p^2} product with 3 MACs, not 4
+    norm_sqrt  square root from the norm (2 exponentiations in F_p), not
+               Algorithm 9 (2 exponentiations in F_{p^2})
+    parallel   a second work area, so that two MACs on disjoint registers
+               (in sqr2 and mul2) run at the same time: less depth"""
+    cmp: bool = True
+    karatsuba: bool = True
+    norm_sqrt: bool = True
+    parallel: bool = True
+
+
+BASELINE = Variant(False, False, False, False)
+BEST = Variant()
+
+
+class Work:
+    """One work area: e (spare for in-place doubling), t, z0 hi flag help,
+    scratch.  Every block returns it to 0."""
+
+    def __init__(self, qubits, n: int):
+        self.e = qubits[0]
+        self.t = list(qubits[1:n + 1])
+        self.z0, self.hi, self.flag, self.help = qubits[n + 1:n + 5]
+        self.s = list(qubits[n + 5:])
+
+    def ma(self):
+        return [self.z0, self.hi, self.flag, self.help, *self.s]
 
 
 class Prog:
@@ -39,19 +75,23 @@ class Prog:
     Values in F_p are lists of n qubits; values in F_{p^2} are (re, im) pairs.
     ``alloc`` takes zero qubits from a pool of freed qubits first."""
 
-    def __init__(self, p: int, name: str = "prog"):
-        self.M = M = ModP(p)
+    def __init__(self, p: int, name: str = "prog", v: Variant = BEST):
+        self.v = v
+        self.M = M = ModP(p, cmp=v.cmp)
         self.p, self.n = p, M.n
         self.qc = QuantumCircuit(name=name)
-        work = QuantumRegister(M.work_size, "work")
-        self.qc.add_register(work)
-        n = self.n
-        self.e = work[0]                       # spare qubit for in-place doubling
-        self.t = list(work[1:n + 1])
-        self.z0, self.hi, self.flag, self.help = work[n + 1:n + 5]
-        self.s = list(work[n + 5:])
+        self.w = []
+        for k in range(2 if v.parallel else 1):
+            work = QuantumRegister(M.work_size, f"work{k}" if k else "work")
+            self.qc.add_register(work)
+            self.w.append(Work(list(work), self.n))
         self.pool: list = []
         self._regs = 0
+
+    @property
+    def w2(self) -> Work:
+        """The second work area (the first one without ``parallel``)."""
+        return self.w[-1]
 
     # -- qubits ------------------------------------------------------------
     def new_register(self, k: int, name: str):
@@ -92,31 +132,53 @@ class Prog:
         return (self.alloc(), self.alloc())
 
     # -- F_p ---------------------------------------------------------------
-    def _ma(self):
-        return [self.z0, self.hi, self.flag, self.help, *self.s]
-
-    def modadd(self, a, z, sub=False):
+    def modadd(self, a, z, sub=False, w: Work | None = None):
         """z <- z +- a mod p."""
+        w = w or self.w[0]
         g = self.M.inv(self.M.modadd) if sub else self.M.modadd
-        self.qc.append(g, [*a, *z, *self._ma()])
+        self.qc.append(g, [*a, *z, *w.ma()])
 
-    def mac(self, x, y, z, sub=False):
+    def mac(self, x, y, z, sub=False, w: Work | None = None):
         """z <- z +- x y mod p (x, y, z distinct)."""
+        w = w or self.w[0]
         g = self.M.inv(self.M.mac) if sub else self.M.mac
-        self.qc.append(g, [*x, *y, *z, self.e, *self.t, *self._ma()])
+        self.qc.append(g, [*x, *y, *z, w.e, *w.t, *w.ma()])
 
     def double(self, x) -> list:
         """x <- 2x mod p in place; returns the relabelled register."""
-        v = [self.e, *x]
-        self.qc.append(self.M.double, [*v, self.flag, self.help, *self.s])
-        self.e = v[self.n]
+        w = self.w[0]
+        v = [w.e, *x]
+        self.qc.append(self.M.double, [*v, w.flag, w.help, *w.s])
+        w.e = v[self.n]
         return v[:self.n]
 
     def halve(self, x) -> list:
-        v = [*x, self.e]
-        self.qc.append(self.M.inv(self.M.double), [*v, self.flag, self.help, *self.s])
-        self.e = v[0]
+        w = self.w[0]
+        v = [*x, w.e]
+        self.qc.append(self.M.inv(self.M.double), [*v, w.flag, w.help, *w.s])
+        w.e = v[0]
         return v[1:]
+
+    def mul(self, x, y) -> list:
+        z = self.alloc()
+        self.mac(x, y, z)
+        return z
+
+    def sqr(self, x) -> list:
+        """x^2 into a new value (MAC needs two registers: x and a copy)."""
+        xc = self.copy(x)
+        z = self.mul(x, xc)
+        self.uncopy(x, xc)
+        return z
+
+    def pow(self, a, e: int) -> list:
+        """a^e in F_p, left-to-right square and multiply; intermediates are kept."""
+        acc = a
+        for bit in bin(e)[3:]:
+            acc = self.sqr(acc)
+            if bit == "1":
+                acc = self.mul(acc, a)
+        return acc
 
     def addconst(self, c: int, z):
         c %= self.p
@@ -133,6 +195,12 @@ class Prog:
             self.qc.cx(a, b)
         return y
 
+    def uncopy(self, x, y):
+        """y = x -> 0, and free y."""
+        for a, b in zip(x, y):
+            self.qc.cx(a, b)
+        self.free(y)
+
     def neg(self, x) -> list:
         z = self.alloc()
         self.modadd(x, z, sub=True)
@@ -140,11 +208,12 @@ class Prog:
 
     def cmodadd(self, ctrl, a, z, sub=False):
         """z <- z +- ctrl * a mod p."""
-        for q, t in zip(a, self.t):
-            self.qc.ccx(ctrl, q, t)
-        self.modadd(self.t, z, sub)
-        for q, t in zip(a, self.t):
-            self.qc.ccx(ctrl, q, t)
+        t = self.w[0].t
+        for q, r in zip(a, t):
+            self.qc.ccx(ctrl, q, r)
+        self.modadd(t, z, sub)
+        for q, r in zip(a, t):
+            self.qc.ccx(ctrl, q, r)
 
     def mcx(self, ctrls, out):
         """out ^= AND(ctrls): a Toffoli ladder with k - 2 clean ancillas."""
@@ -175,11 +244,15 @@ class Prog:
             self.qc.x(q)
 
     def lt(self, a, b, out):
-        """out ^= [a < b]: the sign bit of a - b on n + 1 bits."""
-        A, B = [*a, self.hi], [*b, self.z0]
-        self.qc.append(self.M.inv(self.M.add), [*B, *A, self.help])
-        self.qc.cx(self.hi, out)
-        self.qc.append(self.M.add, [*B, *A, self.help])
+        """out ^= [a < b]: the MAJ comparator, or the sign bit of a - b on n + 1 bits."""
+        w = self.w[0]
+        if self.v.cmp:
+            self.qc.append(self.M.lt, [*a, *b, w.help, out])
+            return
+        A, B = [*a, w.hi], [*b, w.z0]
+        self.qc.append(self.M.inv(self.M.add), [*B, *A, w.help])
+        self.qc.cx(w.hi, out)
+        self.qc.append(self.M.add, [*B, *A, w.help])
 
     def eq(self, a, b, out):
         for x, y in zip(a, b):
@@ -201,29 +274,51 @@ class Prog:
         self.free([e, l])
 
     def mul2(self, a, b):
-        """(a_r + a_i i)(b_r + b_i i), schoolbook: 4 MACs into a new value."""
+        """(a_r + a_i i)(b_r + b_i i) into a new value.
+
+        Schoolbook: 4 MACs.  Karatsuba: X = a_r b_r, Y = a_i b_i,
+        S = (a_r + a_i)(b_r + b_i), re = X - Y, im = S - X - Y, as
+            im = -Y, re = X     (2 MACs, disjoint registers: in parallel)
+            re += im            -> X - Y
+            im <- 2 im          -> -2Y
+            im -= re            -> -X - Y
+            im += S             (1 MAC on two sums, which are then removed)"""
         c = self.alloc2()
-        self.mac(a[0], b[0], c[0])
-        self.mac(a[1], b[1], c[0], sub=True)
-        self.mac(a[0], b[1], c[1])
-        self.mac(a[1], b[0], c[1])
-        return c
+        if not self.v.karatsuba:
+            self.mac(a[0], b[0], c[0])
+            self.mac(a[1], b[1], c[0], sub=True)
+            self.mac(a[0], b[1], c[1])
+            self.mac(a[1], b[0], c[1])
+            return c
+        self.mac(a[1], b[1], c[1], sub=True)
+        self.mac(a[0], b[0], c[0], w=self.w2)
+        self.modadd(c[1], c[0])
+        im = self.double(c[1])
+        self.modadd(c[0], im, sub=True)
+        sa, sb = self.copy(a[0]), self.copy(b[0])
+        self.modadd(a[1], sa)
+        self.modadd(b[1], sb)
+        self.mac(sa, sb, im)
+        self.modadd(b[1], sb, sub=True)
+        self.modadd(a[1], sa, sub=True)
+        self.uncopy(b[0], sb)
+        self.uncopy(a[0], sa)
+        return (c[0], im)
 
     def sqr2(self, a):
-        """(a_r + a_i i)^2 = (a_r + a_i)(a_r - a_i) + 2 a_r a_i i: 2 MACs."""
+        """(a_r + a_i i)^2 = (a_r + a_i)(a_r - a_i) + 2 a_r a_i i: 2 MACs on
+        disjoint registers (in parallel when there are two work areas)."""
         sp, sm = self.copy(a[0]), self.copy(a[0])
         self.modadd(a[1], sp)
         self.modadd(a[1], sm, sub=True)
         c = self.alloc2()
         self.mac(sp, sm, c[0])
-        self.mac(a[0], a[1], c[1])
+        self.mac(a[0], a[1], c[1], w=self.w2)
         c = (c[0], self.double(c[1]))
         self.modadd(a[1], sm)
         self.modadd(a[1], sp, sub=True)
-        for x in (sp, sm):
-            for q, r in zip(a[0], x):
-                self.qc.cx(q, r)
-            self.free(x)
+        self.uncopy(a[0], sp)
+        self.uncopy(a[0], sm)
         return c
 
     def pow2(self, a, e: int):
@@ -242,13 +337,77 @@ class Prog:
         return (self.neg(a[0]), self.neg(a[1]))
 
 
+def sqrt_alg9(P: Prog, d):
+    """Adj & Rodriguez-Henriquez 2014, Algorithm 9: 2 exponentiations in F_{p^2}."""
+    p = P.p
+    a1 = P.pow2(d, (p - 3) // 4)
+    x0 = P.mul2(a1, d)
+    alpha = P.mul2(a1, x0)
+    minus1 = P.alloc(1)[0]
+    P.eq_const([*alpha[0], *alpha[1]], p - 1, minus1)       # alpha == -1 (+ 0 i)
+    c = P.copy2(alpha)
+    P.addconst(1, c[0])
+    s = P.mul2(P.pow2(c, (p - 1) // 2), x0)
+    P.cmodadd(minus1, x0[1], s[0], sub=True)                # s += [alpha=-1] i x0
+    P.cmodadd(minus1, x0[0], s[1])
+    return s
+
+
+def sqrt_norm(P: Prog, d):
+    """A square root of d = a + b i from its norm: 2 exponentiations in F_p.
+
+        N = a^2 + b^2,  lam = N^((p+1)/4)          (lam^2 = N: N is a square)
+        delta = (a + lam) / 2;  if delta = 0 then delta = a      (only if b = 0)
+        r = delta^((p-3)/4),  y = r delta,  t = b r / 2,  q = [y r = 1]
+        q = 1:  s = y + t i       (y^2 = delta,  1/y = r)
+        q = 0:  s = -t + y i      (y^2 = -delta, 1/y = -r)
+    Why: s = x0 + x1 i with s^2 = d gives x0^2 - x1^2 = a, x0^2 + x1^2 = +-lam,
+    so x0^2 = (a +- lam)/2.  delta (a - lam)/2 = -b^2/4 and -1 is not a square
+    (p = 3 mod 4), so if delta is not a square, x1^2 = -delta is.  In both
+    cases the other part is b / (2 x) with 1/x = +-r: no inversion.
+    If b = 0 and a is not a square, then lam = -a and delta = 0; delta = a
+    then gives q = 0 and s = y i with y^2 = -a."""
+    p = P.p
+    a, b = d
+    N = P.sqr(a)
+    bc = P.copy(b)
+    P.mac(b, bc, N)
+    P.uncopy(b, bc)
+    lam = P.pow(N, (p + 1) // 4)
+    delta = P.copy(a)
+    P.modadd(lam, delta)
+    delta = P.halve(delta)
+    zero = P.alloc(1)[0]
+    P.eq_const(delta, 0, zero)
+    for x, y in zip(a, delta):                              # delta = 0 -> a
+        P.qc.ccx(zero, x, y)
+    r = P.pow(delta, (p - 3) // 4)
+    if r is delta:                                          # (p - 3)/4 = 1
+        r = P.copy(delta)
+    y = P.mul(r, delta)
+    t = P.halve(P.mul(b, r))
+    c = P.mul(y, r)
+    q = P.alloc(1)[0]
+    P.eq_const(c, 1, q)
+    nt = P.neg(t)
+    s = P.alloc2()
+    for k in range(P.n):                                    # select with q
+        P.qc.cx(nt[k], s[0][k])
+        P.qc.ccx(q, nt[k], s[0][k])
+        P.qc.ccx(q, y[k], s[0][k])
+        P.qc.cx(y[k], s[1][k])
+        P.qc.ccx(q, y[k], s[1][k])
+        P.qc.ccx(q, t[k], s[1][k])
+    return s
+
+
 class StepCircuit:
     """The arithmetic step for one p.  Registers: A (2n), b (1), out (2n)."""
 
-    def __init__(self, p: int):
-        P = Prog(p, "fwd")
+    def __init__(self, p: int, v: Variant = BEST):
+        P = Prog(p, "fwd", v)
         n = P.n
-        self.p, self.n = p, n
+        self.p, self.n, self.v = p, n, v
         self.A = (P.new_register(n, "A_re"), P.new_register(n, "A_im"))
         self.b = P.new_register(1, "b")[0]
         self.out = (P.new_register(n, "out_re"), P.new_register(n, "out_im"))
@@ -256,17 +415,7 @@ class StepCircuit:
 
         d = P.sqr2(A)
         P.addconst(-4, d[0])
-        # square root, Algorithm 9
-        a1 = P.pow2(d, (p - 3) // 4)
-        x0 = P.mul2(a1, d)
-        alpha = P.mul2(a1, x0)
-        minus1 = P.alloc(1)[0]
-        P.eq_const([*alpha[0], *alpha[1]], p - 1, minus1)       # alpha == -1 (+ 0 i)
-        c = P.copy2(alpha)
-        P.addconst(1, c[0])
-        s = P.mul2(P.pow2(c, (p - 1) // 2), x0)
-        P.cmodadd(minus1, x0[1], s[0], sub=True)                # s += [alpha=-1] i x0
-        P.cmodadd(minus1, x0[0], s[1])
+        s = sqrt_norm(P, d) if v.norm_sqrt else sqrt_alg9(P, d)
         # the two roots of x^2 + A x + 1
         rp, rm = P.neg2(A), P.neg2(A)
         for k in (0, 1):
@@ -308,10 +457,10 @@ class StepCircuit:
 class TowerCircuit:
     """|A>|0> -> |A>|[j(E_A) in F_p]>, all work qubits back to 0."""
 
-    def __init__(self, p: int):
-        P = Prog(p, "tower_fwd")
+    def __init__(self, p: int, v: Variant = BEST):
+        P = Prog(p, "tower_fwd", v)
         n = P.n
-        self.p, self.n = p, n
+        self.p, self.n, self.v = p, n, v
         self.A = (P.new_register(n, "A_re"), P.new_register(n, "A_im"))
         self.out = P.new_register(1, "on_top")[0]
         a2 = P.sqr2(self.A)

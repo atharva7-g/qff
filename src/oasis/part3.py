@@ -28,15 +28,15 @@ from qiskit_aer import AerSimulator
 
 from . import tower as tower_mod
 from .arith_cost import cnots, count, depth_ub, flatten, toffolis
-from .arith_step import StepCircuit, TowerCircuit
+from .arith_step import BASELINE, BEST, StepCircuit, TowerCircuit, Variant
 from .survey import survey
 from .walk import Campus
 
 
 # -- simulation ------------------------------------------------------------
 
-def _build(kind: str, p: int):
-    return StepCircuit(p) if kind == "step" else TowerCircuit(p)
+def _build(kind: str, p: int, v: Variant = BEST):
+    return StepCircuit(p, v) if kind == "step" else TowerCircuit(p, v)
 
 
 def _inputs(C, kind):
@@ -54,8 +54,8 @@ def _encode(kind, n, case):
 
 
 def _worker(job):
-    kind, p, cases = job
-    C = _build(kind, p)
+    kind, p, cases, v = job
+    C = _build(kind, p, v)
     ins, outs = _inputs(C, kind), _outputs(C, kind)
     th = [Parameter(f"t{k}") for k in range(len(ins))]
     qc = QuantumCircuit(*C.qc.qregs, ClassicalRegister(C.qc.num_qubits, "m"))
@@ -80,11 +80,11 @@ def _worker(job):
     return out
 
 
-def simulate(kind: str, p: int, cases: list, workers: int = 32) -> list:
+def simulate(kind: str, p: int, cases: list, workers: int = 32, v: Variant = BEST) -> list:
     chunks = [cases[i::workers] for i in range(workers) if cases[i::workers]]
     ctx = multiprocessing.get_context("spawn")     # Aer is multi-threaded: no fork
     with ProcessPoolExecutor(len(chunks), mp_context=ctx) as ex:
-        return [r for part in ex.map(_worker, [(kind, p, c) for c in chunks]) for r in part]
+        return [r for part in ex.map(_worker, [(kind, p, c, v) for c in chunks]) for r in part]
 
 
 @dataclass
@@ -99,18 +99,20 @@ class CheckResult:
         return not self.wrong and not self.inputs_changed and not self.dirty
 
 
-def check_step(p: int, workers: int = 32, limit: int | None = None) -> CheckResult:
-    S, C = survey(p), Campus(p)
-    cases = [(A, b) for A in S.spots for b in (0, 1)][:limit]
-    res = simulate("step", p, cases, workers)
+def check_step(p: int, workers: int = 32, limit: int | None = None, v: Variant = BEST,
+               spots: list | None = None) -> CheckResult:
+    C = Campus(p)
+    spots = survey(p).spots if spots is None else spots
+    cases = [(A, b) for A in spots for b in (0, 1)][:limit]
+    res = simulate("step", p, cases, workers, v)
     wrong = [(c, g) for c, g, _, _ in res if g != C.step(*c)]
     return CheckResult(len(res), wrong, sum(not r[2] for r in res), sum(not r[3] for r in res))
 
 
-def check_tower(p: int, workers: int = 32) -> CheckResult:
+def check_tower(p: int, workers: int = 32, v: Variant = BEST) -> CheckResult:
     S, C = survey(p), Campus(p)
     cases = [(A,) for A in S.spots]
-    res = simulate("tower", p, cases, workers)
+    res = simulate("tower", p, cases, workers, v)
     wrong = [(c, g) for c, g, _, _ in res if g != int(C.j(c[0])[1] == 0)]
     return CheckResult(len(res), wrong, sum(not r[2] for r in res), sum(not r[3] for r in res))
 
@@ -132,8 +134,8 @@ class Cost:
         return per_toffoli * self.toffoli
 
 
-def cost_of(kind: str, p: int, depth: bool = False) -> Cost:
-    C = _build(kind, p)
+def cost_of(kind: str, p: int, depth: bool = False, v: Variant = BEST) -> Cost:
+    C = _build(kind, p, v)
     c = count(C.qc)
     d = flatten(C.qc).depth() if depth else None
     return Cost(p, C.n, C.qc.num_qubits, toffolis(c), cnots(c), c["x"], depth_ub(C.qc), d)
